@@ -1,6 +1,3 @@
---@rznnq ui 
---AUTOKICK-DISCORD @rznnq (working in STEAL A BRAINROT uwu)
--- DISCORD: https://discord.gg/5PnYundM
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
