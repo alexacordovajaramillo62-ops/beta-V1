@@ -81,7 +81,7 @@ local themes = {
 	},
 	Dark = {
 		['Shadow'] = Color3.fromRGB(250, 15, 250),
-		['Background'] = Color3.fromRGB(20, 20, 20),
+		['Background'] = Color3.fromRGB(45, 10, 80),
 		['Page'] = Color3.fromRGB(250, 15, 250),
 		['Main'] = Color3.fromRGB(250, 15, 250),
 		['Text & Icon'] = Color3.fromRGB(230, 230, 230),
@@ -158,7 +158,7 @@ local themes = {
 }
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "Dummy Kawaii"
+ScreenGui.Name = "LK GUI"
 ScreenGui.Parent = not game:GetService("RunService"):IsStudio() and game:GetService("CoreGui") or game:GetService("Players").LocalPlayer.PlayerGui
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
