@@ -45,8 +45,8 @@ local themes = {
             ['Code'] = {
                 ['Background'] = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 10, 0)), ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 10, 0))},
                 ['Background Code'] = Color3.fromRGB(10, 15, 0),
-                ['Background Code Value'] = Color3.fromRGB(20, 5, 0),
-                ['ScrollingFrame Code'] = Color3.fromRGB(255, 69, 0)
+                ['Background Code Value'] = Color3.fromRGB(10, 15, 0),
+                ['ScrollingFrame Code'] = Color3.fromRGB(255, 0, 0)
             },
             ['Button'] = {
                 ['Background'] = Color3.fromRGB(30, 10, 0),
@@ -71,9 +71,9 @@ local themes = {
                 }
             },
             ['Color Picker'] = {
-                ['Background'] = Color3.fromRGB(30, 10, 0),
+                ['Background'] = Color3.fromRGB(0, 0, 0),
                 ['Color Select'] = {
-                    ['Background'] = Color3.fromRGB(20, 5, 0),
+                    ['Background'] = Color3.fromRGB(0, 5, 0),
                     ['UIStroke'] = Color3.fromRGB(255, 69, 0),
                 }
             }
