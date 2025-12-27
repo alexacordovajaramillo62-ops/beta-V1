@@ -5,31 +5,31 @@ local themes = {
 	index = {'PHOENIX', 'Amethyst'},
 	Amethyst = {
 		['Shadow'] = Color3.fromRGB(45, 10, 80),
-		['Background'] = Color3.fromRGB(45, 20, 0),
-		['Page'] = Color3.fromRGB(45, 20, 0),
+		['Background'] = Color3.fromRGB(5, 20, 0),
+		['Page'] = Color3.fromRGB(95, 20, 0),
 		['Main'] = Color3.fromRGB(45, 10, 80),
 		['Text & Icon'] = Color3.fromRGB(230, 230, 230),
 		['Function'] = {
 			['Toggle'] = {
 				['Background'] = Color3.fromRGB(45, 20, 0),
 				['True'] = {
-					['Toggle Background'] = Color3.fromRGB(45, 20, 0),
-					['Toggle Value'] = Color3.fromRGB(45, 20, 0),
+					['Toggle Background'] = Color3.fromRGB(75, 20, 0),
+					['Toggle Value'] = Color3.fromRGB(45, 20, 1),
 				},
 				['False'] = {
-					['Toggle Background'] = Color3.fromRGB(36, 35, 48),
-					['Toggle Value'] = Color3.fromRGB(44, 42, 62),
+					['Toggle Background'] = Color3.fromRGB(36, 5, 48),
+					['Toggle Value'] = Color3.fromRGB(4, 42, 62),
 				}
 			},
 			['Label'] = {
-				['Background'] = Color3.fromRGB(29, 28, 38),
+				['Background'] = Color3.fromRGB(29, 8, 38),
 			},
 			['Dropdown'] = {
-				['Background'] = Color3.fromRGB(29, 28, 38),
-				['Value Background'] = Color3.fromRGB(24, 24, 31),
+				['Background'] = Color3.fromRGB(9, 28, 38),
+				['Value Background'] = Color3.fromRGB(24, 4, 31),
 				['Value Stroke'] = Color3.fromRGB(255, 255, 255),
 				['Dropdown Select'] = {
-					['Background'] = Color3.fromRGB(24, 24, 31),
+					['Background'] = Color3.fromRGB(24, 54, 31),
 					['Search'] = Color3.fromRGB(35, 35, 42),
 					['Item Background'] = Color3.fromRGB(45, 45, 52),
 				}
