@@ -1,0 +1,1322 @@
+-- Brainrot Futurist Library v3.0
+-- Made by PHOENIX-LK
+-- Librería futurista con efectos, soporte móvil y botón flotante
+
+local BrainrotLib = {}
+
+-- ============================================================
+-- VARIABLES GLOBALES Y CONFIGURACIÓN
+-- ============================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local Stats = game:GetService("Stats")
+local TextService = game:GetService("TextService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Colores futuristas
+local FUTURE_COLORS = {
+    Primary = Color3.fromRGB(0, 255, 255),    -- Cian brillante
+    Secondary = Color3.fromRGB(255, 50, 255),  -- Magenta
+    Accent = Color3.fromRGB(0, 200, 255),      -- Azul eléctrico
+    Success = Color3.fromRGB(0, 255, 200),     -- Verde cian
+    Warning = Color3.fromRGB(255, 255, 0),     -- Amarillo neón
+    Error = Color3.fromRGB(255, 50, 50),       -- Rojo neón
+    Background = Color3.fromRGB(10, 15, 30),   -- Azul oscuro futurista
+    Surface = Color3.fromRGB(20, 25, 50),      -- Superficie futurista
+    Text = Color3.fromRGB(240, 250, 255),      -- Texto blanco azulado
+    Glow = Color3.fromRGB(100, 255, 255),      -- Brillo neón
+}
+
+-- Configuración
+getgenv().BRAINROT_CONFIG = {
+    -- ESP
+    ESP_ENABLED = false,
+    ESP_PLAYERS_ENABLED = false,
+    SHOW_ALL_RARITIES = true,
+    SHOW_MUTATIONS_ONLY = false,
+    SHOW_TRAITS_ONLY = false,
+    MIN_GEN_VALUE = 0,
+    
+    -- Auto Steal
+    AUTO_STEAL_ENABLED = false,
+    AUTO_STEAL_NEAREST_ENABLED = false,
+    AUTO_STEAL_PRIORITY_ENABLED = false,
+    PREDICTIVE_STEAL = true,
+    FLOOR_STEAL_ENABLED = false,
+    
+    -- Optimizer
+    OptimizerEnabled = false,
+    
+    -- Speed
+    STEAL_SPEED_ENABLED = false,
+    STEAL_DISABLE_ANIM_ENABLED = false,
+    
+    -- Anti-Lag
+    ANTI_LAG_ENABLED = false,
+    ANTI_BEE_DISCO_ENABLED = false,
+    ANTI_RAGDOLL_V1_ENABLED = false,
+    ANTI_RAGDOLL_V2_ENABLED = false,
+    
+    -- Teleport
+    AUTO_TP_ENABLED = false,
+    SAFE_TELEPORT = true,
+    CARPET_MIDDLE = false,
+    
+    -- Walls
+    INVISIBLE_BASE_WALLS_ENABLED = false,
+    
+    -- Desync
+    AUTO_DESYNC_ENABLED = false,
+    
+    -- Favorites
+    FAVORITES_PRIORITY_ENABLED = false,
+    
+    -- Keybinds
+    TELEPORT_KEYBIND = Enum.KeyCode.T,
+    TOGGLE_GUI_KEYBIND = Enum.KeyCode.RightControl,
+    INSTANT_CLONER_KEYBIND = Enum.KeyCode.C,
+    KICK_SELF_KEYBIND = nil,
+    FLOOR_STEAL_KEYBIND = nil,
+    REJOIN_KEYBIND = nil,
+    DESYNC_KEYBIND = Enum.KeyCode.F,
+    
+    -- GUI
+    GUI_POSITION_X = nil,
+    GUI_POSITION_Y = nil,
+    MINI_GUI_POSITION_X = nil,
+    MINI_GUI_POSITION_Y = nil,
+    GUI_SCALE = 1,
+    
+    -- Efectos
+    HolographicEffects = true,
+    GlowEffects = true,
+    ParticleEffects = true,
+    AnimatedUI = true,
+}
+
+local CONFIG = getgenv().BRAINROT_CONFIG
+
+if not getgenv().BRAINROT_FAVORITES then
+    getgenv().BRAINROT_FAVORITES = {}
+end
+
+local FAVORITES = getgenv().BRAINROT_FAVORITES
+
+local Config = {
+    FAVORITES_FILE = "BrainrotFuturistFavorites.json",
+    CONFIG_FILE_NAME = "BrainrotFuturistConfig.json"
+}
+
+-- Cache
+local allAnimalsCache = {}
+local espHighlights = {}
+local playerHighlights = {}
+local espBillboards = {}
+local playerBillboards = {}
+local highestAnimal = nil
+local activeTweens = {}
+local activeParticles = {}
+local holographicProjections = {}
+
+-- Variables para efectos
+local glowMaterials = {}
+local particleEmitters = {}
+local hologramClones = {}
+
+-- Stats
+local stats = {
+    totalAnimals = 0,
+    totalValue = 0,
+    highestGen = 0,
+    mutationCount = 0,
+    traitCount = 0,
+}
+
+-- ============================================================
+-- SISTEMA DE EFECTOS FUTURISTAS
+-- ============================================================
+local Effects = {}
+
+function Effects:CreateGlowEffect(parent, color, intensity)
+    if not CONFIG.GlowEffects then return nil end
+    
+    local glow = Instance.new("SurfaceGui")
+    glow.Name = "FuturistGlow"
+    glow.Face = Enum.NormalId.Top
+    glow.AlwaysOnTop = true
+    glow.LightInfluence = 0
+    glow.Parent = parent
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = color
+    frame.BackgroundTransparency = 0.5
+    frame.BorderSizePixel = 0
+    frame.Parent = glow
+    
+    -- Efecto de brillo animado
+    task.spawn(function()
+        while glow and glow.Parent do
+            for i = 0.3, 0.7, 0.05 do
+                if not glow.Parent then break end
+                frame.BackgroundTransparency = i
+                task.wait(0.1)
+            end
+            for i = 0.7, 0.3, -0.05 do
+                if not glow.Parent then break end
+                frame.BackgroundTransparency = i
+                task.wait(0.1)
+            end
+        end
+    end)
+    
+    glowMaterials[glow] = true
+    return glow
+end
+
+function Effects:CreateParticleEmitter(position, color, count)
+    if not CONFIG.ParticleEffects then return nil end
+    
+    local emitter = Instance.new("Part")
+    emitter.Name = "FuturistParticles"
+    emitter.Size = Vector3.new(0.1, 0.1, 0.1)
+    emitter.Position = position
+    emitter.Anchored = true
+    emitter.CanCollide = false
+    emitter.Transparency = 1
+    emitter.Parent = Workspace
+    
+    local particle = Instance.new("ParticleEmitter")
+    particle.Color = ColorSequence.new(color)
+    particle.Size = NumberSequence.new(0.2)
+    particle.Transparency = NumberSequence.new(0.5)
+    particle.Lifetime = NumberRange.new(1)
+    particle.Rate = count
+    particle.Speed = NumberRange.new(2)
+    particle.Parent = emitter
+    
+    task.delay(3, function()
+        if emitter then
+            emitter:Destroy()
+        end
+    end)
+    
+    particleEmitters[emitter] = true
+    return emitter
+end
+
+function Effects:CreateHolographicProjection(model, color)
+    if not CONFIG.HolographicEffects then return nil end
+    
+    local hologram = model:Clone()
+    for _, part in ipairs(hologram:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Transparency = 0.7
+            part.Color = color
+            part.Material = Enum.Material.Neon
+            
+            -- Efecto de parpadeo holográfico
+            task.spawn(function()
+                while hologram and hologram.Parent do
+                    part.Transparency = 0.6
+                    task.wait(0.5)
+                    part.Transparency = 0.8
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end
+    
+    hologram.Parent = Workspace
+    hologram:SetPrimaryPartCFrame(model:GetPrimaryPartCFrame() + Vector3.new(0, 2, 0))
+    
+    hologramClones[hologram] = true
+    return hologram
+end
+
+function Effects:CreateUIEffect(frame, effectType)
+    if not CONFIG.AnimatedUI then return end
+    
+    if effectType == "glow" then
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = FUTURE_COLORS.Glow
+        stroke.Thickness = 2
+        stroke.Transparency = 0.5
+        stroke.Parent = frame
+        
+        -- Animación de brillo
+        task.spawn(function()
+            while stroke and stroke.Parent do
+                for i = 0.3, 0.7, 0.05 do
+                    if not stroke.Parent then break end
+                    stroke.Transparency = i
+                    task.wait(0.05)
+                end
+                for i = 0.7, 0.3, -0.05 do
+                    if not stroke.Parent then break end
+                    stroke.Transparency = i
+                    task.wait(0.05)
+                end
+            end
+        end)
+        
+    elseif effectType == "pulse" then
+        task.spawn(function()
+            while frame and frame.Parent do
+                TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = frame.Size + UDim2.new(0.02, 0, 0.02, 0)
+                }):Play()
+                task.wait(0.5)
+                TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = frame.Size - UDim2.new(0.02, 0, 0.02, 0)
+                }):Play()
+                task.wait(0.5)
+            end
+        end)
+    end
+end
+
+function Effects:CreateFloatingText(text, position, color)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 200, 0, 50)
+    billboard.Adornee = Workspace.Terrain
+    billboard.AlwaysOnTop = true
+    billboard.StudsOffset = position
+    billboard.Parent = PlayerGui
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = text
+    textLabel.TextColor3 = color or FUTURE_COLORS.Primary
+    textLabel.TextSize = 20
+    textLabel.Font = Enum.Font.SciFi
+    textLabel.TextStrokeTransparency = 0
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.Parent = billboard
+    
+    -- Animación flotante
+    local tween = TweenService:Create(billboard, TweenInfo.new(2, Enum.EasingStyle.Quad), {
+        StudsOffset = position + Vector3.new(0, 5, 0)
+    })
+    tween:Play()
+    
+    task.delay(2, function()
+        if billboard then
+            billboard:Destroy()
+        end
+    end)
+    
+    return billboard
+end
+
+function Effects:CleanupAllEffects()
+    for glow, _ in pairs(glowMaterials) do
+        if glow then
+            glow:Destroy()
+        end
+    end
+    glowMaterials = {}
+    
+    for emitter, _ in pairs(particleEmitters) do
+        if emitter then
+            emitter:Destroy()
+        end
+    end
+    particleEmitters = {}
+    
+    for hologram, _ in pairs(hologramClones) do
+        if hologram then
+            hologram:Destroy()
+        end
+    end
+    hologramClones = {}
+end
+
+-- ============================================================
+-- SISTEMA DE ESP FUTURISTA
+-- ============================================================
+function BrainrotLib:ToggleESP()
+    CONFIG.ESP_ENABLED = not CONFIG.ESP_ENABLED
+    self:SaveConfig()
+    
+    if CONFIG.ESP_ENABLED then
+        self:StartFuturistESP()
+        Effects:CreateFloatingText("ESP ACTIVADO", Vector3.new(0, 5, 0), FUTURE_COLORS.Success)
+    else
+        self:StopFuturistESP()
+        Effects:CreateFloatingText("ESP DESACTIVADO", Vector3.new(0, 5, 0), FUTURE_COLORS.Error)
+    end
+    return CONFIG.ESP_ENABLED
+end
+
+function BrainrotLib:StartFuturistESP()
+    for _, animal in pairs(Workspace:GetChildren()) do
+        if animal:IsA("Model") and animal:FindFirstChild("HumanoidRootPart") and animal.Name ~= LocalPlayer.Name then
+            self:CreateFuturistAnimalESP(animal)
+        end
+    end
+    
+    Workspace.ChildAdded:Connect(function(child)
+        if child:IsA("Model") and child:FindFirstChild("HumanoidRootPart") and child.Name ~= LocalPlayer.Name then
+            task.wait(1)
+            if CONFIG.ESP_ENABLED then
+                self:CreateFuturistAnimalESP(child)
+            end
+        end
+    end)
+end
+
+function BrainrotLib:CreateFuturistAnimalESP(animal)
+    -- Highlight futurista
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FuturistESP_" .. animal.Name
+    highlight.Adornee = animal
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillColor = FUTURE_COLORS.Primary
+    highlight.FillTransparency = 0.7
+    highlight.OutlineColor = FUTURE_COLORS.Glow
+    highlight.OutlineTransparency = 0.3
+    highlight.Parent = PlayerGui
+    
+    -- Holograma del animal
+    if CONFIG.HolographicEffects then
+        Effects:CreateHolographicProjection(animal, FUTURE_COLORS.Primary)
+    end
+    
+    -- Billboard con información
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "FuturistInfo_" .. animal.Name
+    billboard.Adornee = animal.PrimaryPart or animal:FindFirstChild("HumanoidRootPart")
+    billboard.AlwaysOnTop = true
+    billboard.Size = UDim2.new(0, 250, 0, 80)
+    billboard.StudsOffset = Vector3.new(0, 4, 0)
+    billboard.Parent = PlayerGui
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = FUTURE_COLORS.Background
+    frame.BackgroundTransparency = 0.3
+    frame.BorderSizePixel = 0
+    frame.Parent = billboard
+    
+    Effects:CreateUIEffect(frame, "glow")
+    
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, -10, 0.4, 0)
+    nameLabel.Position = UDim2.new(0, 5, 0, 5)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = FUTURE_COLORS.Primary
+    nameLabel.Text = animal.Name
+    nameLabel.TextSize = 16
+    nameLabel.Font = Enum.Font.SciFi
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    nameLabel.Parent = frame
+    
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Size = UDim2.new(1, -10, 0.4, -5)
+    infoLabel.Position = UDim2.new(0, 5, 0.5, 0)
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.TextColor3 = FUTURE_COLORS.Accent
+    infoLabel.Text = "DISTANCE: CALCULATING..."
+    infoLabel.TextSize = 14
+    infoLabel.Font = Enum.Font.SciFi
+    infoLabel.TextStrokeTransparency = 0
+    infoLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    infoLabel.Parent = frame
+    
+    -- Actualizar distancia en tiempo real
+    local connection
+    connection = RunService.Heartbeat:Connect(function()
+        if not animal or not animal.Parent then
+            if connection then connection:Disconnect() end
+            return
+        end
+        
+        local animalPos = animal:GetPrimaryPartCFrame().Position
+        local playerPos = LocalPlayer.Character and LocalPlayer.Character:GetPrimaryPartCFrame().Position
+        if playerPos then
+            local distance = (animalPos - playerPos).Magnitude
+            infoLabel.Text = string.format("DIST: %.1f studs", distance)
+        end
+    end)
+    
+    espHighlights[animal] = highlight
+    espBillboards[animal] = billboard
+end
+
+function BrainrotLib:StopFuturistESP()
+    for _, highlight in pairs(espHighlights) do
+        if highlight then highlight:Destroy() end
+    end
+    espHighlights = {}
+    
+    for _, billboard in pairs(espBillboards) do
+        if billboard then billboard:Destroy() end
+    end
+    espBillboards = {}
+end
+
+function BrainrotLib:TogglePlayerESP()
+    CONFIG.ESP_PLAYERS_ENABLED = not CONFIG.ESP_PLAYERS_ENABLED
+    self:SaveConfig()
+    
+    if CONFIG.ESP_PLAYERS_ENABLED then
+        self:StartFuturistPlayerESP()
+    else
+        self:StopFuturistPlayerESP()
+    end
+    return CONFIG.ESP_PLAYERS_ENABLED
+end
+
+function BrainrotLib:StartFuturistPlayerESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            self:CreateFuturistPlayerESP(player.Character)
+        end
+    end
+    
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            if CONFIG.ESP_PLAYERS_ENABLED then
+                self:CreateFuturistPlayerESP(character)
+            end
+        end)
+    end)
+end
+
+function BrainrotLib:CreateFuturistPlayerESP(character)
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "FuturistPlayerESP_" .. character.Name
+    highlight.Adornee = character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.FillColor = FUTURE_COLORS.Secondary
+    highlight.FillTransparency = 0.8
+    highlight.OutlineColor = FUTURE_COLORS.Glow
+    highlight.OutlineTransparency = 0.2
+    highlight.Parent = PlayerGui
+    
+    playerHighlights[character] = highlight
+end
+
+function BrainrotLib:StopFuturistPlayerESP()
+    for _, highlight in pairs(playerHighlights) do
+        if highlight then highlight:Destroy() end
+    end
+    playerHighlights = {}
+end
+
+-- ============================================================
+-- SISTEMA DE TELEPORT FUTURISTA
+-- ============================================================
+function BrainrotLib:TeleportToHighest()
+    local highestValue = 0
+    local targetAnimal = nil
+    
+    for _, animal in pairs(Workspace:GetChildren()) do
+        if animal:IsA("Model") and animal:FindFirstChild("HumanoidRootPart") and animal.Name ~= LocalPlayer.Name then
+            local value = animal.HumanoidRootPart.Position.Y
+            if value > highestValue then
+                highestValue = value
+                targetAnimal = animal
+            end
+        end
+    end
+    
+    if targetAnimal then
+        -- Efecto de partículas antes del teleport
+        if CONFIG.ParticleEffects then
+            Effects:CreateParticleEmitter(
+                LocalPlayer.Character.HumanoidRootPart.Position,
+                FUTURE_COLORS.Primary,
+                50
+            )
+        end
+        
+        -- Animación de teleport
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            CFrame = targetAnimal.HumanoidRootPart.CFrame * CFrame.new(0, 3, 0)
+        }):Play()
+        
+        -- Efecto después del teleport
+        task.wait(0.5)
+        if CONFIG.ParticleEffects then
+            Effects:CreateParticleEmitter(
+                hrp.Position,
+                FUTURE_COLORS.Success,
+                50
+            )
+        end
+        
+        Effects:CreateFloatingText("TELEPORTED", Vector3.new(0, 5, 0), FUTURE_COLORS.Success)
+        return true
+    end
+    return false
+end
+
+function BrainrotLib:TeleportToNearest()
+    local nearestDistance = math.huge
+    local nearestAnimal = nil
+    
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return false
+    end
+    
+    local playerPos = LocalPlayer.Character.HumanoidRootPart.Position
+    
+    for _, animal in pairs(Workspace:GetChildren()) do
+        if animal:IsA("Model") and animal:FindFirstChild("HumanoidRootPart") and animal.Name ~= LocalPlayer.Name then
+            local distance = (playerPos - animal.HumanoidRootPart.Position).Magnitude
+            if distance < nearestDistance then
+                nearestDistance = distance
+                nearestAnimal = animal
+            end
+        end
+    end
+    
+    if nearestAnimal then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = nearestAnimal.HumanoidRootPart.CFrame
+        Effects:CreateFloatingText("NEAREST TELEPORT", Vector3.new(0, 5, 0), FUTURE_COLORS.Accent)
+        return true
+    end
+    return false
+end
+
+-- ============================================================
+-- SISTEMA DE AUTO STEAL FUTURISTA
+-- ============================================================
+function BrainrotLib:ToggleAutoSteal()
+    CONFIG.AUTO_STEAL_ENABLED = not CONFIG.AUTO_STEAL_ENABLED
+    self:SaveConfig()
+    
+    if CONFIG.AUTO_STEAL_ENABLED then
+        self:StartFuturistAutoSteal()
+        Effects:CreateFloatingText("AUTO STEAL: ON", Vector3.new(0, 3, 0), FUTURE_COLORS.Success)
+    else
+        self:StopFuturistAutoSteal()
+        Effects:CreateFloatingText("AUTO STEAL: OFF", Vector3.new(0, 3, 0), FUTURE_COLORS.Error)
+    end
+    return CONFIG.AUTO_STEAL_ENABLED
+end
+
+function BrainrotLib:StartFuturistAutoSteal()
+    task.spawn(function()
+        while CONFIG.AUTO_STEAL_ENABLED do
+            task.wait(0.3) -- Más rápido para efecto futurista
+            
+            pcall(function()
+                local character = LocalPlayer.Character
+                if not character or not character:FindFirstChild("HumanoidRootPart") then
+                    return
+                end
+                
+                local playerPos = character.HumanoidRootPart.Position
+                
+                for _, animal in pairs(Workspace:GetChildren()) do
+                    if animal:IsA("Model") and animal:FindFirstChild("HumanoidRootPart") and animal.Name ~= LocalPlayer.Name then
+                        local distance = (playerPos - animal.HumanoidRootPart.Position).Magnitude
+                        
+                        if distance < 30 then -- Rango aumentado
+                            -- Efecto visual al robar
+                            if CONFIG.ParticleEffects then
+                                Effects:CreateParticleEmitter(
+                                    animal.HumanoidRootPart.Position,
+                                    FUTURE_COLORS.Secondary,
+                                    20
+                                )
+                            end
+                            
+                            -- Intentar robar
+                            local clickDetector = self:FindClickDetector(animal)
+                            if clickDetector then
+                                fireclickdetector(clickDetector)
+                            end
+                            
+                            -- Breve pausa para no saturar
+                            task.wait(0.1)
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+function BrainrotLib:StopFuturistAutoSteal()
+    -- Se detiene automáticamente al salir del loop
+end
+
+-- ============================================================
+-- SISTEMA DE OPTIMIZER FUTURISTA
+-- ============================================================
+function BrainrotLib:ToggleOptimizer()
+    CONFIG.OptimizerEnabled = not CONFIG.OptimizerEnabled
+    self:SaveConfig()
+    
+    if CONFIG.OptimizerEnabled then
+        self:EnableFuturistOptimizer()
+        Effects:CreateFloatingText("OPTIMIZER: ON", Vector3.new(0, 4, 0), FUTURE_COLORS.Success)
+    else
+        self:DisableFuturistOptimizer()
+        Effects:CreateFloatingText("OPTIMIZER: OFF", Vector3.new(0, 4, 0), FUTURE_COLORS.Error)
+    end
+    return CONFIG.OptimizerEnabled
+end
+
+function BrainrotLib:EnableFuturistOptimizer()
+    -- Optimizaciones gráficas futuristas
+    settings().Rendering.QualityLevel = 1
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+    
+    -- Iluminación futurista
+    Lighting.GlobalShadows = false
+    Lighting.Brightness = 2
+    Lighting.Ambient = Color3.fromRGB(50, 100, 150)
+    
+    -- Efectos de partículas optimizados
+    for _, part in pairs(Workspace:GetDescendants()) do
+        if part:IsA("ParticleEmitter") then
+            part.Rate = math.min(part.Rate, 20)
+        end
+    end
+    
+    -- Desbloquear FPS
+    setfpscap(999)
+    
+    -- Activar modo de rendimiento
+    game:GetService("ScriptContext").ScriptsDisabled = false
+end
+
+function BrainrotLib:DisableFuturistOptimizer()
+    -- Restaurar configuración
+    settings().Rendering.QualityLevel = 21
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.DistanceBased
+    
+    Lighting.GlobalShadows = true
+    Lighting.Brightness = 1
+    Lighting.Ambient = Color3.fromRGB(127, 127, 127)
+    
+    setfpscap(60)
+end
+
+-- ============================================================
+-- UTILIDADES FUTURISTAS
+-- ============================================================
+function BrainrotLib:InstantCloner()
+    Effects:CreateFloatingText("INSTANT CLONER", Vector3.new(0, 6, 0), FUTURE_COLORS.Primary)
+    
+    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        -- Efecto de clonación
+        if CONFIG.ParticleEffects then
+            Effects:CreateParticleEmitter(
+                LocalPlayer.Character.HumanoidRootPart.Position,
+                FUTURE_COLORS.Primary,
+                100
+            )
+        end
+        
+        -- Aumentar velocidad temporalmente
+        humanoid.WalkSpeed = 150
+        humanoid.JumpPower = 120
+        
+        task.wait(3)
+        
+        -- Restaurar valores
+        humanoid.WalkSpeed = 16
+        humanoid.JumpPower = 50
+        
+        Effects:CreateFloatingText("CLONER FINISHED", Vector3.new(0, 6, 0), FUTURE_COLORS.Success)
+    end
+    return true
+end
+
+function BrainrotLib:EnableDesync()
+    Effects:CreateFloatingText("DESYNC V3 ACTIVATED", Vector3.new(0, 7, 0), FUTURE_COLORS.Warning)
+    
+    -- Flags de desync futuristas
+    local desyncFlags = {
+        "DFIntTaskSchedulerTargetFps",
+        "FFlagDebugGraphicsPreferVulkan",
+        "DFIntS2PhysicsSenderRate",
+        "FFlagDebugDisableParticleRendering",
+        "DFIntMaxInterpolationSubsteps",
+    }
+    
+    for _, flag in pairs(desyncFlags) do
+        pcall(function()
+            setfflag(flag, "999")
+        end)
+    end
+    
+    -- Efectos visuales
+    if CONFIG.ParticleEffects then
+        Effects:CreateParticleEmitter(
+            LocalPlayer.Character.HumanoidRootPart.Position,
+            FUTURE_COLORS.Warning,
+            200
+        )
+    end
+    
+    -- Mejoras de movimiento
+    local humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 120
+        humanoid.JumpPower = 100
+    end
+    
+    return true
+end
+
+function BrainrotLib:KickSelf()
+    Effects:CreateFloatingText("SELF KICK INITIATED", Vector3.new(0, 8, 0), FUTURE_COLORS.Error)
+    task.wait(1)
+    LocalPlayer:Kick("Kicked by Brainrot Futurist")
+    return true
+end
+
+function BrainrotLib:RejoinServer()
+    Effects:CreateFloatingText("REJOINING SERVER", Vector3.new(0, 8, 0), FUTURE_COLORS.Accent)
+    
+    task.wait(0.5)
+    
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    
+    if jobId and jobId ~= "" then
+        TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+    else
+        TeleportService:Teleport(placeId, LocalPlayer)
+    end
+    return true
+end
+
+-- ============================================================
+-- GUI FLOTANTE FUTURISTA (MÓVIL)
+-- ============================================================
+local FloatingGUI = {
+    MainFrame = nil,
+    MinimizedButton = nil,
+    IsMinimized = false,
+    IsMobile = false
+}
+
+function FloatingGUI:DetectDevice()
+    self.IsMobile = UserInputService.TouchEnabled
+    return self.IsMobile
+end
+
+function FloatingGUI:CreateMinimizedButton()
+    if self.MinimizedButton then
+        self.MinimizedButton:Destroy()
+    end
+    
+    -- Botón flotante futurista
+    local button = Instance.new("ImageButton")
+    button.Name = "BrainrotFloatingButton"
+    button.Size = self.IsMobile and UDim2.new(0, 70, 0, 70) or UDim2.new(0, 60, 0, 60)
+    button.Position = UDim2.new(0, 20, 0, 20)
+    button.BackgroundColor3 = FUTURE_COLORS.Background
+    button.BackgroundTransparency = 0.3
+    button.Image = "rbxassetid://7072717775" -- Icono futurista
+    button.ScaleType = Enum.ScaleType.Fit
+    button.Parent = PlayerGui
+    
+    -- Efectos de brillo
+    Effects:CreateUIEffect(button, "glow")
+    
+    -- Texto hover
+    local tooltip = Instance.new("TextLabel")
+    tooltip.Name = "Tooltip"
+    tooltip.Size = UDim2.new(0, 120, 0, 30)
+    tooltip.Position = UDim2.new(1, 10, 0.5, -15)
+    tooltip.BackgroundColor3 = FUTURE_COLORS.Surface
+    tooltip.BackgroundTransparency = 0.4
+    tooltip.Text = "BRAINROT MENU"
+    tooltip.TextColor3 = FUTURE_COLORS.Primary
+    tooltip.TextSize = 14
+    tooltip.Font = Enum.Font.SciFi
+    tooltip.Visible = false
+    tooltip.Parent = button
+    
+    Effects:CreateUIEffect(tooltip, "glow")
+    
+    -- Hover effects
+    button.MouseEnter:Connect(function()
+        tooltip.Visible = true
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            Size = self.IsMobile and UDim2.new(0, 80, 0, 80) or UDim2.new(0, 70, 0, 70),
+            BackgroundTransparency = 0.1
+        }):Play()
+    end)
+    
+    button.MouseLeave:Connect(function()
+        tooltip.Visible = false
+        TweenService:Create(button, TweenInfo.new(0.2), {
+            Size = self.IsMobile and UDim2.new(0, 70, 0, 70) or UDim2.new(0, 60, 0, 60),
+            BackgroundTransparency = 0.3
+        }):Play()
+    end)
+    
+    -- Click para abrir/cerrar
+    button.MouseButton1Click:Connect(function()
+        if self.IsMinimized then
+            self:ShowMainGUI()
+        else
+            self:HideMainGUI()
+        end
+    end)
+    
+    -- Hacer arrastrable (solo en móvil)
+    if self.IsMobile then
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        
+        button.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = button.Position
+            end
+        end)
+        
+        button.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and input.UserInputType == Enum.UserInputType.Touch then
+                local delta = input.Position - dragStart
+                button.Position = UDim2.new(
+                    startPos.X.Scale,
+                    startPos.X.Offset + delta.X,
+                    startPos.Y.Scale,
+                    startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+    end
+    
+    self.MinimizedButton = button
+    return button
+end
+
+function FloatingGUI:CreateMainGUI()
+    if self.MainFrame then
+        self.MainFrame:Destroy()
+    end
+    
+    local screenSize = Workspace.CurrentCamera.ViewportSize
+    local isMobile = self.IsMobile
+    
+    -- Marco principal futurista
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "BrainrotFuturistGUI"
+    mainFrame.Size = isMobile and UDim2.new(0, 300, 0, 400) or UDim2.new(0, 350, 0, 450)
+    mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    mainFrame.BackgroundColor3 = FUTURE_COLORS.Background
+    mainFrame.BackgroundTransparency = 0.2
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Visible = false
+    mainFrame.Parent = PlayerGui
+    
+    -- Efectos de borde
+    Effects:CreateUIEffect(mainFrame, "glow")
+    
+    -- Barra de título
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundColor3 = FUTURE_COLORS.Surface
+    titleBar.BackgroundTransparency = 0.3
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    Effects:CreateUIEffect(titleBar, "glow")
+    
+    -- Título
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0.7, 0, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "BRAINROT FUTURIST v3.0"
+    title.TextColor3 = FUTURE_COLORS.Primary
+    title.TextSize = isMobile and 16 or 18
+    title.Font = Enum.Font.SciFi
+    title.TextStrokeTransparency = 0
+    title.TextStrokeColor3 = Color3.new(0, 0, 0)
+    title.Parent = titleBar
+    
+    -- Botón de cerrar/minimizar
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -35, 0.5, -15)
+    closeButton.BackgroundColor3 = FUTURE_COLORS.Error
+    closeButton.BackgroundTransparency = 0.3
+    closeButton.Text = "X"
+    closeButton.TextColor3 = FUTURE_COLORS.Text
+    closeButton.TextSize = 16
+    closeButton.Font = Enum.Font.SciFi
+    closeButton.Parent = titleBar
+    
+    closeButton.MouseButton1Click:Connect(function()
+        self:HideMainGUI()
+    end)
+    
+    -- Contenido con scroll
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Name = "Content"
+    scrollFrame.Size = UDim2.new(1, -20, 1, -60)
+    scrollFrame.Position = UDim2.new(0, 10, 0, 50)
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.ScrollBarThickness = 4
+    scrollFrame.ScrollBarImageColor3 = FUTURE_COLORS.Primary
+    scrollFrame.Parent = mainFrame
+    
+    -- Contenedor de botones
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = "ButtonContainer"
+    buttonContainer.Size = UDim2.new(1, 0, 0, 0)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Parent = scrollFrame
+    
+    local uiListLayout = Instance.new("UIListLayout")
+    uiListLayout.Padding = UDim2.new(0, 0, 0, 10)
+    uiListLayout.Parent = buttonContainer
+    
+    -- Crear botones de funciones
+    local function createFunctionButton(text, color, callback)
+        local button = Instance.new("TextButton")
+        button.Name = text .. "Button"
+        button.Size = UDim2.new(1, 0, 0, isMobile and 45 or 50)
+        button.BackgroundColor3 = color
+        button.BackgroundTransparency = 0.3
+        button.Text = text
+        button.TextColor3 = FUTURE_COLORS.Text
+        button.TextSize = isMobile and 14 or 16
+        button.Font = Enum.Font.SciFi
+        button.Parent = buttonContainer
+        
+        Effects:CreateUIEffect(button, "glow")
+        
+        -- Efectos hover
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundTransparency = 0.1,
+                Size = button.Size + UDim2.new(0, 10, 0, 5)
+            }):Play()
+        end)
+        
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundTransparency = 0.3,
+                Size = button.Size - UDim2.new(0, 10, 0, 5)
+            }):Play()
+        end)
+        
+        button.MouseButton1Click:Connect(function()
+            callback()
+            -- Efecto de click
+            Effects:CreateUIEffect(button, "pulse")
+        end)
+        
+        return button
+    end
+    
+    -- Botones principales
+    createFunctionButton("TOGGLE ESP", FUTURE_COLORS.Primary, function()
+        BrainrotLib:ToggleESP()
+    end)
+    
+    createFunctionButton("TOGGLE PLAYER ESP", FUTURE_COLORS.Secondary, function()
+        BrainrotLib:TogglePlayerESP()
+    end)
+    
+    createFunctionButton("TELEPORT TO HIGHEST", FUTURE_COLORS.Accent, function()
+        BrainrotLib:TeleportToHighest()
+    end)
+    
+    createFunctionButton("TELEPORT TO NEAREST", FUTURE_COLORS.Accent, function()
+        BrainrotLib:TeleportToNearest()
+    end)
+    
+    createFunctionButton("TOGGLE AUTO STEAL", FUTURE_COLORS.Success, function()
+        BrainrotLib:ToggleAutoSteal()
+    end)
+    
+    createFunctionButton("TOGGLE OPTIMIZER", FUTURE_COLORS.Warning, function()
+        BrainrotLib:ToggleOptimizer()
+    end)
+    
+    createFunctionButton("INSTANT CLONER", FUTURE_COLORS.Primary, function()
+        BrainrotLib:InstantCloner()
+    end)
+    
+    createFunctionButton("ENABLE DESYNC", FUTURE_COLORS.Warning, function()
+        BrainrotLib:EnableDesync()
+    end)
+    
+    createFunctionButton("REJOIN SERVER", FUTURE_COLORS.Accent, function()
+        BrainrotLib:RejoinServer()
+    end)
+    
+    createFunctionButton("KICK SELF", FUTURE_COLORS.Error, function()
+        BrainrotLib:KickSelf()
+    end)
+    
+    -- Actualizar tamaño del contenedor
+    uiListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        buttonContainer.Size = UDim2.new(1, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, uiListLayout.AbsoluteContentSize.Y)
+    end)
+    
+    self.MainFrame = mainFrame
+    return mainFrame
+end
+
+function FloatingGUI:ShowMainGUI()
+    if not self.MainFrame then
+        self:CreateMainGUI()
+    end
+    
+    self.MainFrame.Visible = true
+    self.IsMinimized = false
+    
+    -- Animación de entrada
+    self.MainFrame.Position = UDim2.new(0.5, -150, 0, -400)
+    TweenService:Create(self.MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -150, 0.5, -200)
+    }):Play()
+    
+    if self.MinimizedButton then
+        self.MinimizedButton.Visible = false
+    end
+end
+
+function FloatingGUI:HideMainGUI()
+    if not self.MainFrame then return end
+    
+    -- Animación de salida
+    TweenService:Create(self.MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+        Position = UDim2.new(0.5, -150, 0, -400)
+    }):Play()
+    
+    task.wait(0.3)
+    self.MainFrame.Visible = false
+    self.IsMinimized = true
+    
+    if self.MinimizedButton then
+        self.MinimizedButton.Visible = true
+    end
+end
+
+function FloatingGUI:ToggleGUI()
+    if self.IsMinimized then
+        self:ShowMainGUI()
+    else
+        self:HideMainGUI()
+    end
+end
+
+function BrainrotLib:ShowFloatingGUI()
+    FloatingGUI:DetectDevice()
+    FloatingGUI:CreateMinimizedButton()
+    FloatingGUI:CreateMainGUI()
+end
+
+function BrainrotLib:HideFloatingGUI()
+    if FloatingGUI.MainFrame then
+        FloatingGUI.MainFrame:Destroy()
+    end
+    if FloatingGUI.MinimizedButton then
+        FloatingGUI.MinimizedButton:Destroy()
+    end
+end
+
+function BrainrotLib:ToggleFloatingGUI()
+    if FloatingGUI.IsMinimized then
+        FloatingGUI:ShowMainGUI()
+    else
+        FloatingGUI:HideMainGUI()
+    end
+end
+
+-- ============================================================
+-- SISTEMA DE CONFIGURACIÓN
+-- ============================================================
+function BrainrotLib:SaveConfig()
+    saveConfig()
+end
+
+function BrainrotLib:LoadConfig()
+    loadConfig()
+end
+
+function BrainrotLib:GetConfig(key)
+    return CONFIG[key]
+end
+
+function BrainrotLib:SetConfig(key, value)
+    CONFIG[key] = value
+    getgenv().BRAINROT_CONFIG[key] = value
+    saveConfig()
+    return true
+end
+
+-- ============================================================
+-- FUNCIONES DE FAVORITOS
+-- ============================================================
+function BrainrotLib:AddFavorite(name)
+    for _, fav in pairs(FAVORITES) do
+        if fav:lower() == name:lower() then
+            return false
+        end
+    end
+    
+    table.insert(FAVORITES, name)
+    saveFavorites()
+    Effects:CreateFloatingText("ADDED TO FAVORITES", Vector3.new(0, 5, 0), FUTURE_COLORS.Success)
+    return true
+end
+
+function BrainrotLib:RemoveFavorite(name)
+    for i, fav in pairs(FAVORITES) do
+        if fav:lower() == name:lower() then
+            table.remove(FAVORITES, i)
+            saveFavorites()
+            Effects:CreateFloatingText("REMOVED FROM FAVORITES", Vector3.new(0, 5, 0), FUTURE_COLORS.Error)
+            return true
+        end
+    end
+    return false
+end
+
+function BrainrotLib:GetFavorites()
+    return FAVORITES
+end
+
+function BrainrotLib:ClearFavorites()
+    FAVORITES = {}
+    getgenv().BRAINROT_FAVORITES = FAVORITES
+    saveFavorites()
+    return true
+end
+
+-- ============================================================
+-- FUNCIONES DE ESTADO
+-- ============================================================
+function BrainrotLib:GetStatus()
+    return {
+        ESP = CONFIG.ESP_ENABLED,
+        PlayerESP = CONFIG.ESP_PLAYERS_ENABLED,
+        AutoSteal = CONFIG.AUTO_STEAL_ENABLED,
+        Optimizer = CONFIG.OptimizerEnabled,
+        AnimalCount = #allAnimalsCache,
+        TotalValue = stats.totalValue
+    }
+end
+
+function BrainrotLib:ScanAnimals()
+    allAnimalsCache = {}
+    stats.totalAnimals = 0
+    stats.totalValue = 0
+    stats.highestGen = 0
+    
+    for _, animal in pairs(Workspace:GetChildren()) do
+        if animal:IsA("Model") and animal:FindFirstChild("HumanoidRootPart") and animal.Name ~= LocalPlayer.Name then
+            table.insert(allAnimalsCache, animal)
+            stats.totalAnimals = stats.totalAnimals + 1
+            
+            local value = animal.HumanoidRootPart.Position.Y * 1000
+            stats.totalValue = stats.totalValue + value
+            
+            if value > stats.highestGen then
+                stats.highestGen = value
+                highestAnimal = animal
+            end
+        end
+    end
+    
+    return #allAnimalsCache
+end
+
+-- ============================================================
+-- INICIALIZACIÓN
+-- ============================================================
+function BrainrotLib:Init()
+    -- Cargar configuración
+    self:LoadConfig()
+    
+    -- Detectar dispositivo
+    FloatingGUI:DetectDevice()
+    
+    -- Crear GUI flotante
+    self:ShowFloatingGUI()
+    
+    -- Inicializar keybinds
+    self:SetupKeybinds()
+    
+    -- Escanear animales iniciales
+    self:ScanAnimals()
+    
+    -- Iniciar efectos si están activados
+    if CONFIG.HolographicEffects or CONFIG.ParticleEffects then
+        Effects:CreateFloatingText("BRAINROT FUTURIST LOADED", Vector3.new(0, 10, 0), FUTURE_COLORS.Primary)
+    end
+    
+    print("Brainrot Futurist v3.0 initialized successfully!")
+    return true
+end
+
+function BrainrotLib:SetupKeybinds()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == CONFIG.TELEPORT_KEYBIND then
+            self:TeleportToHighest()
+            
+        elseif input.KeyCode == CONFIG.TOGGLE_GUI_KEYBIND then
+            self:ToggleFloatingGUI()
+            
+        elseif input.KeyCode == CONFIG.INSTANT_CLONER_KEYBIND then
+            self:InstantCloner()
+            
+        elseif input.KeyCode == CONFIG.DESYNC_KEYBIND then
+            self:EnableDesync()
+        end
+    end)
+end
+
+-- ============================================================
+-- FUNCIONES ADICIONALES (Compatibilidad)
+-- ============================================================
+BrainrotLib.TogglePlayerESP = BrainrotLib.TogglePlayerESP
+BrainrotLib.ToggleAutoSteal = BrainrotLib.ToggleAutoSteal
+BrainrotLib.ToggleOptimizer = BrainrotLib.ToggleOptimizer
+BrainrotLib.InstantCloner = BrainrotLib.InstantCloner
+BrainrotLib.KickSelf = BrainrotLib.KickSelf
+BrainrotLib.RejoinServer = BrainrotLib.RejoinServer
+BrainrotLib.EnableDesync = BrainrotLib.EnableDesync
+BrainrotLib.GetStatus = BrainrotLib.GetStatus
+BrainrotLib.ScanAnimals = BrainrotLib.ScanAnimals
+BrainrotLib.RescanPlots = BrainrotLib.ScanAnimals
+BrainrotLib.GetAnimalCount = function() return #allAnimalsCache end
+BrainrotLib.GetHighestAnimal = function() return highestAnimal end
+
+return BrainrotLib
