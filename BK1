@@ -1,0 +1,726 @@
+-- BK Hub v5 - UI Library for Roblox
+-- Version: 5.0.0
+-- Author: BK
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local BKHub = {}
+BKHub.__index = BKHub
+
+-- Configuración por defecto
+BKHub.Defaults = {
+    Theme = {
+        Background = Color3.fromRGB(30, 30, 35),
+        Primary = Color3.fromRGB(0, 120, 215),
+        Secondary = Color3.fromRGB(50, 50, 55),
+        Text = Color3.fromRGB(240, 240, 240),
+        Accent = Color3.fromRGB(255, 165, 0),
+        Success = Color3.fromRGB(46, 204, 113),
+        Error = Color3.fromRGB(231, 76, 60)
+    },
+    Keybind = Enum.KeyCode.RightControl,
+    Watermark = true,
+    Notifications = true,
+    AutoSave = true
+}
+
+-- Estado de características
+BKHub.FeatureState = {
+    Steel = {
+        AutoHighestGen = false,
+        AutoNearest = false,
+        FloorSteel = false,
+        SpeedPanel = false,
+        DoubleAnimation = false
+    },
+    ESP = {
+        Brains = false,
+        Players = false,
+        BarboseBase = false
+    }
+}
+
+-- Métricas
+BKHub.Metrics = {
+    FPS = 0,
+    Ping = 0,
+    LastUpdate = 0
+}
+
+-- Constructor
+function BKHub.new(config)
+    local self = setmetatable({}, BKHub)
+    
+    -- Configuración
+    self.Config = setmetatable(config or {}, { __index = BKHub.Defaults })
+    
+    -- Estado
+    self.Enabled = false
+    self.Visible = false
+    self.Player = Players.LocalPlayer
+    
+    -- Referencias UI
+    self.ScreenGui = nil
+    self.MainFrame = nil
+    self.Watermark = nil
+    self.Toggles = {}
+    
+    -- Inicializar
+    self:_setup()
+    
+    return self
+end
+
+-- Inicialización interna
+function BKHub:_setup()
+    -- Crear interfaz
+    self:_createUI()
+    
+    -- Configurar keybind
+    self:_setupKeybind()
+    
+    -- Iniciar métricas
+    self:_startMetrics()
+    
+    -- Cargar configuración guardada
+    if self.Config.AutoSave then
+        self:_loadSettings()
+    end
+    
+    self.Enabled = true
+    self:Notify("BK Hub v5 loaded successfully!")
+end
+
+-- Crear interfaz de usuario
+function BKHub:_createUI()
+    -- ScreenGui principal
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "BKHubv5"
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.Parent = self.Player:WaitForChild("PlayerGui")
+    
+    -- Frame principal
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "MainFrame"
+    self.MainFrame.Size = UDim2.new(0, 350, 0, 450)
+    self.MainFrame.Position = UDim2.new(0.5, -175, 0.5, -225)
+    self.MainFrame.BackgroundColor3 = self.Config.Theme.Background
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.Visible = false
+    
+    -- Corner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = self.MainFrame
+    
+    -- Sombra
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 10, 1, 10)
+    shadow.Position = UDim2.new(0, -5, 0, -5)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://1316045217"
+    shadow.ImageColor3 = Color3.new(0, 0, 0)
+    shadow.ImageTransparency = 0.8
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+    shadow.Parent = self.MainFrame
+    
+    -- Header
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.Size = UDim2.new(1, 0, 0, 40)
+    header.BackgroundColor3 = self.Config.Theme.Secondary
+    header.BorderSizePixel = 0
+    header.Parent = self.MainFrame
+    
+    local headerCorner = Instance.new("UICorner")
+    headerCorner.CornerRadius = UDim.new(0, 8)
+    headerCorner.Parent = header
+    
+    -- Título
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0.7, 0, 1, 0)
+    title.Position = UDim2.new(0.05, 0, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "BK's Hub v5"
+    title.TextColor3 = self.Config.Theme.Text
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 20
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = header
+    
+    -- Métricas
+    local metrics = Instance.new("TextLabel")
+    metrics.Name = "Metrics"
+    metrics.Size = UDim2.new(0.25, 0, 1, 0)
+    metrics.Position = UDim2.new(0.75, 0, 0, 0)
+    metrics.BackgroundTransparency = 1
+    metrics.Text = "FPS: 0 | 0ms"
+    metrics.TextColor3 = self.Config.Theme.Accent
+    metrics.Font = Enum.Font.SourceSans
+    metrics.TextSize = 14
+    metrics.TextXAlignment = Enum.TextXAlignment.Right
+    metrics.Parent = header
+    
+    -- Contenedor de características
+    local featuresContainer = Instance.new("ScrollingFrame")
+    featuresContainer.Name = "FeaturesContainer"
+    featuresContainer.Size = UDim2.new(1, -20, 1, -60)
+    featuresContainer.Position = UDim2.new(0, 10, 0, 50)
+    featuresContainer.BackgroundTransparency = 1
+    featuresContainer.BorderSizePixel = 0
+    featuresContainer.ScrollBarThickness = 4
+    featuresContainer.ScrollBarImageColor3 = self.Config.Theme.Primary
+    featuresContainer.CanvasSize = UDim2.new(0, 0, 0, 500)
+    featuresContainer.Parent = self.MainFrame
+    
+    -- Crear secciones
+    self:_createSection(featuresContainer, "Steel Features", 10)
+    self:_createSteelFeatures(featuresContainer)
+    
+    self:_createSection(featuresContainer, "ESP Features", 180)
+    self:_createESPFeatures(featuresContainer)
+    
+    -- Botón de cerrar
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 100, 0, 30)
+    closeButton.Position = UDim2.new(0.5, -50, 1, -40)
+    closeButton.BackgroundColor3 = self.Config.Theme.Secondary
+    closeButton.Text = "Close"
+    closeButton.TextColor3 = self.Config.Theme.Text
+    closeButton.Font = Enum.Font.SourceSans
+    closeButton.TextSize = 16
+    closeButton.Parent = self.MainFrame
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeButton
+    
+    closeButton.MouseButton1Click:Connect(function()
+        self.Visible = false
+        self.MainFrame.Visible = false
+    end)
+    
+    self.MainFrame.Parent = self.ScreenGui
+    
+    -- Crear watermark si está habilitado
+    if self.Config.Watermark then
+        self:_createWatermark()
+    end
+end
+
+-- Crear sección
+function BKHub:_createSection(parent, title, yPosition)
+    local section = Instance.new("Frame")
+    section.Name = title .. "Section"
+    section.Size = UDim2.new(1, -20, 0, 30)
+    section.Position = UDim2.new(0, 10, 0, yPosition)
+    section.BackgroundTransparency = 1
+    section.Parent = parent
+    
+    local sectionTitle = Instance.new("TextLabel")
+    sectionTitle.Name = "Title"
+    sectionTitle.Size = UDim2.new(1, 0, 1, 0)
+    sectionTitle.BackgroundTransparency = 1
+    sectionTitle.Text = title
+    sectionTitle.TextColor3 = self.Config.Theme.Primary
+    sectionTitle.Font = Enum.Font.SourceSansBold
+    sectionTitle.TextSize = 18
+    sectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+    sectionTitle.Parent = section
+    
+    local line = Instance.new("Frame")
+    line.Name = "Line"
+    line.Size = UDim2.new(1, 0, 0, 1)
+    line.Position = UDim2.new(0, 0, 1, -1)
+    line.BackgroundColor3 = self.Config.Theme.Primary
+    line.BorderSizePixel = 0
+    line.Parent = section
+    
+    return section
+end
+
+-- Crear características Steel
+function BKHub:_createSteelFeatures(parent)
+    local features = {
+        {"Auto-Steel Highest Gen", "AutoHighestGen", 50},
+        {"Auto-Steel Nearest", "AutoNearest", 80},
+        {"Floor Steel", "FloorSteel", 110},
+        {"Speed Panel During Steel", "SpeedPanel", 140},
+        {"Double Animation During Steel", "DoubleAnimation", 170}
+    }
+    
+    for _, featureData in ipairs(features) do
+        local featureName, featureKey, yPos = unpack(featureData)
+        self.Toggles[featureKey] = self:_createToggle(parent, featureName, yPos, function(state)
+            BKHub.FeatureState.Steel[featureKey] = state
+            self:Notify(featureName .. ": " .. (state and "ON" or "OFF"))
+            
+            -- Lógica específica para cada característica
+            self["_toggle" .. featureKey](self, state)
+        end)
+    end
+end
+
+-- Crear características ESP
+function BKHub:_createESPFeatures(parent)
+    local features = {
+        {"Brains ESP", "Brains", 230},
+        {"Player ESP", "Players", 260},
+        {"Barbose Base", "BarboseBase", 290}
+    }
+    
+    for _, featureData in ipairs(features) do
+        local featureName, featureKey, yPos = unpack(featureData)
+        self.Toggles[featureKey] = self:_createToggle(parent, featureName, yPos, function(state)
+            BKHub.FeatureState.ESP[featureKey] = state
+            self:Notify(featureName .. ": " .. (state and "ON" or "OFF"))
+            
+            -- Lógica específica para cada característica
+            self["_toggle" .. featureKey .. "ESP"](self, state)
+        end)
+    end
+end
+
+-- Crear toggle individual
+function BKHub:_createToggle(parent, text, yPosition, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Name = text .. "Toggle"
+    toggleFrame.Size = UDim2.new(1, 0, 0, 30)
+    toggleFrame.Position = UDim2.new(0, 0, 0, yPosition)
+    toggleFrame.BackgroundTransparency = 1
+    toggleFrame.Parent = parent
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = self.Config.Theme.Text
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 16
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = toggleFrame
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "Toggle"
+    toggleButton.Size = UDim2.new(0, 50, 0, 25)
+    toggleButton.Position = UDim2.new(1, -55, 0.5, -12.5)
+    toggleButton.BackgroundColor3 = self.Config.Theme.Secondary
+    toggleButton.Text = ""
+    toggleButton.Parent = toggleFrame
+    
+    local toggleCorner = Instance.new("UICorner")
+    toggleCorner.CornerRadius = UDim.new(0, 12)
+    toggleCorner.Parent = toggleButton
+    
+    local toggleCircle = Instance.new("Frame")
+    toggleCircle.Name = "Circle"
+    toggleCircle.Size = UDim2.new(0, 19, 0, 19)
+    toggleCircle.Position = UDim2.new(0, 3, 0.5, -9.5)
+    toggleCircle.BackgroundColor3 = self.Config.Theme.Text
+    toggleCircle.Parent = toggleButton
+    
+    local circleCorner = Instance.new("UICorner")
+    circleCorner.CornerRadius = UDim.new(1, 0)
+    circleCorner.Parent = toggleCircle
+    
+    local state = false
+    
+    local function updateToggle()
+        local goalPosition = state and UDim2.new(1, -22, 0.5, -9.5) or UDim2.new(0, 3, 0.5, -9.5)
+        local goalColor = state and self.Config.Theme.Success or self.Config.Theme.Secondary
+        
+        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        
+        local circleTween = TweenService:Create(toggleCircle, tweenInfo, {Position = goalPosition})
+        local buttonTween = TweenService:Create(toggleButton, tweenInfo, {BackgroundColor3 = goalColor})
+        
+        circleTween:Play()
+        buttonTween:Play()
+    end
+    
+    toggleButton.MouseButton1Click:Connect(function()
+        state = not state
+        updateToggle()
+        
+        if callback then
+            callback(state)
+        end
+    end)
+    
+    return {
+        Frame = toggleFrame,
+        Button = toggleButton,
+        State = false,
+        Set = function(newState)
+            state = newState
+            updateToggle()
+            if callback then
+                callback(state)
+            end
+        end,
+        Get = function() return state end
+    }
+end
+
+-- Crear watermark
+function BKHub:_createWatermark()
+    self.Watermark = Instance.new("TextLabel")
+    self.Watermark.Name = "Watermark"
+    self.Watermark.Size = UDim2.new(0, 200, 0, 25)
+    self.Watermark.Position = UDim2.new(1, -210, 0, 10)
+    self.Watermark.BackgroundColor3 = self.Config.Theme.Background
+    self.Watermark.BackgroundTransparency = 0.3
+    self.Watermark.Text = "BK Hub v5 | FPS: 0 | 0ms"
+    self.Watermark.TextColor3 = self.Config.Theme.Accent
+    self.Watermark.Font = Enum.Font.SourceSans
+    self.Watermark.TextSize = 14
+    self.Watermark.Parent = self.ScreenGui
+    
+    local watermarkCorner = Instance.new("UICorner")
+    watermarkCorner.CornerRadius = UDim.new(0, 4)
+    watermarkCorner.Parent = self.Watermark
+    
+    local watermarkStroke = Instance.new("UIStroke")
+    watermarkStroke.Color = self.Config.Theme.Primary
+    watermarkStroke.Thickness = 1
+    watermarkStroke.Parent = self.Watermark
+end
+
+-- Configurar keybind
+function BKHub:_setupKeybind()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == self.Config.Keybind then
+            self:ToggleUI()
+        end
+    end)
+end
+
+-- Iniciar métricas
+function BKHub:_startMetrics()
+    local frameCount = 0
+    local lastTime = tick()
+    
+    RunService.Heartbeat:Connect(function()
+        frameCount = frameCount + 1
+        
+        local currentTime = tick()
+        if currentTime - lastTime >= 1 then
+            self.Metrics.FPS = math.floor(frameCount / (currentTime - lastTime))
+            frameCount = 0
+            lastTime = currentTime
+            
+            -- Simular ping
+            self.Metrics.Ping = math.random(100, 200)
+            
+            -- Actualizar UI
+            self:_updateMetrics()
+        end
+    end)
+end
+
+-- Actualizar métricas en UI
+function BKHub:_updateMetrics()
+    if not self.MainFrame or not self.MainFrame:FindFirstChild("Header") then return end
+    
+    local metricsLabel = self.MainFrame.Header:FindFirstChild("Metrics")
+    if metricsLabel then
+        metricsLabel.Text = string.format("FPS: %d | %dms", self.Metrics.FPS, self.Metrics.Ping)
+    end
+    
+    if self.Watermark then
+        self.Watermark.Text = string.format("BK Hub v5 | FPS: %d | %dms", self.Metrics.FPS, self.Metrics.Ping)
+    end
+end
+
+-- Cargar configuración
+function BKHub:_loadSettings()
+    -- Esto cargaría desde DataStore o archivo
+    -- Por ahora es solo un placeholder
+    print("[BK Hub] Loading settings...")
+end
+
+-- Guardar configuración
+function BKHub:_saveSettings()
+    if not self.Config.AutoSave then return end
+    print("[BK Hub] Saving settings...")
+end
+
+-- Métodos de características Steel
+function BKHub:_toggleAutoHighestGen(state)
+    print("Auto-Steel Highest Gen:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica real aquí
+end
+
+function BKHub:_toggleAutoNearest(state)
+    print("Auto-Steel Nearest:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica real aquí
+end
+
+function BKHub:_toggleFloorSteel(state)
+    print("Floor Steel:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica real aquí
+end
+
+function BKHub:_toggleSpeedPanel(state)
+    print("Speed Panel During Steel:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica real aquí
+end
+
+function BKHub:_toggleDoubleAnimation(state)
+    print("Double Animation During Steel:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica real aquí
+end
+
+-- Métodos de características ESP
+function BKHub:_toggleBrainsESP(state)
+    print("Brains ESP:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica ESP aquí
+end
+
+function BKHub:_togglePlayersESP(state)
+    print("Player ESP:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica ESP aquí
+end
+
+function BKHub:_toggleBarboseBaseESP(state)
+    print("Barbose Base:", state and "ENABLED" or "DISABLED")
+    -- Implementar lógica ESP aquí
+end
+
+-- Métodos públicos
+function BKHub:ToggleUI()
+    if not self.Enabled then return end
+    
+    self.Visible = not self.Visible
+    self.MainFrame.Visible = self.Visible
+    
+    if self.Visible then
+        self.MainFrame:TweenPosition(
+            UDim2.new(0.5, -175, 0.5, -225),
+            "Out",
+            "Quad",
+            0.3,
+            true
+        )
+    else
+        self.MainFrame:TweenPosition(
+            UDim2.new(0.5, -175, 0.5, 450),
+            "Out",
+            "Quad",
+            0.3,
+            true
+        )
+    end
+    
+    self:Notify("UI " .. (self.Visible and "opened" or "closed"))
+end
+
+function BKHub:Notify(message, duration)
+    duration = duration or 3
+    
+    if not self.Config.Notifications then
+        print("[BK Hub]", message)
+        return
+    end
+    
+    -- Crear notificación
+    local notification = Instance.new("Frame")
+    notification.Name = "Notification"
+    notification.Size = UDim2.new(0, 250, 0, 50)
+    notification.Position = UDim2.new(0.5, -125, 1, 10)
+    notification.BackgroundColor3 = self.Config.Theme.Background
+    notification.BackgroundTransparency = 0.2
+    notification.Parent = self.ScreenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = notification
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = self.Config.Theme.Primary
+    stroke.Thickness = 1
+    stroke.Parent = notification
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 1, -10)
+    label.Position = UDim2.new(0, 10, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = message
+    label.TextColor3 = self.Config.Theme.Text
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 14
+    label.TextWrapped = true
+    label.Parent = notification
+    
+    -- Animación entrada
+    notification:TweenPosition(
+        UDim2.new(0.5, -125, 1, -70),
+        "Out",
+        "Quad",
+        0.5,
+        true
+    )
+    
+    -- Auto-destruir
+    task.delay(duration, function()
+        if notification and notification.Parent then
+            notification:TweenPosition(
+                UDim2.new(0.5, -125, 1, 10),
+                "Out",
+                "Quad",
+                0.5,
+                true
+            )
+            
+            task.wait(0.5)
+            notification:Destroy()
+        end
+    end)
+    
+    print("[BK Hub]", message)
+end
+
+function BKHub:SetTheme(themeName)
+    local themes = {
+        Dark = {
+            Background = Color3.fromRGB(30, 30, 35),
+            Primary = Color3.fromRGB(0, 120, 215),
+            Secondary = Color3.fromRGB(50, 50, 55)
+        },
+        Light = {
+            Background = Color3.fromRGB(240, 240, 245),
+            Primary = Color3.fromRGB(0, 100, 200),
+            Secondary = Color3.fromRGB(220, 220, 225)
+        },
+        Purple = {
+            Background = Color3.fromRGB(40, 35, 50),
+            Primary = Color3.fromRGB(155, 89, 182),
+            Secondary = Color3.fromRGB(60, 55, 70)
+        }
+    }
+    
+    local theme = themes[themeName] or themes.Dark
+    self.Config.Theme = setmetatable(theme, { __index = self.Config.Theme })
+    
+    -- Actualizar UI con nuevo tema
+    self:_updateTheme()
+    self:Notify("Theme changed to: " .. themeName)
+end
+
+function BKHub:_updateTheme()
+    if not self.MainFrame then return end
+    
+    -- Actualizar colores del frame principal
+    self.MainFrame.BackgroundColor3 = self.Config.Theme.Background
+    
+    -- Actualizar header
+    local header = self.MainFrame:FindFirstChild("Header")
+    if header then
+        header.BackgroundColor3 = self.Config.Theme.Secondary
+    end
+    
+    -- Actualizar toggles
+    for _, toggle in pairs(self.Toggles) do
+        if toggle.Button then
+            local currentState = toggle.Get and toggle.Get() or false
+            toggle.Button.BackgroundColor3 = currentState and self.Config.Theme.Success or self.Config.Theme.Secondary
+        end
+    end
+    
+    -- Actualizar watermark
+    if self.Watermark then
+        self.Watermark.BackgroundColor3 = self.Config.Theme.Background
+        local stroke = self.Watermark:FindFirstChild("UIStroke")
+        if stroke then
+            stroke.Color = self.Config.Theme.Primary
+        end
+    end
+end
+
+function BKHub:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
+    
+    self.Enabled = false
+    self:Notify("BK Hub v5 unloaded")
+    
+    -- Limpiar referencias
+    for k in pairs(self) do
+        self[k] = nil
+    end
+    
+    setmetatable(self, nil)
+end
+
+-- Métodos de conveniencia para características
+function BKHub:ToggleAutoSteelHighestGen()
+    local toggle = self.Toggles["AutoHighestGen"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleAutoSteelNearest()
+    local toggle = self.Toggles["AutoNearest"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleFloorSteel()
+    local toggle = self.Toggles["FloorSteel"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleSpeedPanel()
+    local toggle = self.Toggles["SpeedPanel"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleDoubleAnimation()
+    local toggle = self.Toggles["DoubleAnimation"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleBrainsESP()
+    local toggle = self.Toggles["Brains"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:TogglePlayerESP()
+    local toggle = self.Toggles["Players"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+function BKHub:ToggleBarboseBase()
+    local toggle = self.Toggles["BarboseBase"]
+    if toggle then
+        toggle.Set(not toggle.Get())
+    end
+end
+
+-- Exportar la librería
+return BKHub
