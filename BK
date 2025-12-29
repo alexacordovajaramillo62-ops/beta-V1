@@ -1,0 +1,169 @@
+-- BKHub.lua
+-- Librería estilo BK's Hub v5 para Roblox/Entornos Lua
+
+local BKHub = {}
+BKHub.__index = BKHub
+
+-- Colores y configuración
+BKHub.Config = {
+    PrimaryColor = Color3.fromRGB(0, 120, 215),
+    SecondaryColor = Color3.fromRGB(40, 40, 40),
+    TextColor = Color3.fromRGB(255, 255, 255),
+    AccentColor = Color3.fromRGB(255, 165, 0),
+    Font = Enum.Font.SourceSans,
+    TextSize = 14
+}
+
+-- Estado de las características
+BKHub.Features = {
+    AutoSteel = {
+        HighestGen = false,
+        Nearest = false,
+        Enabled = false
+    },
+    FloorSteel = false,
+    SpeedPanel = false,
+    DoubleAnimation = false,
+    ESP = {
+        Brains = false,
+        Players = false,
+        BarboseBase = false
+    }
+}
+
+-- Método para crear el hub principal
+function BKHub.new()
+    local self = setmetatable({}, BKHub)
+    
+    -- Aquí iría la lógica para crear la interfaz en Roblox
+    -- (ScreenGui, Frames, Buttons, etc.)
+    
+    return self
+end
+
+-- Funciones para características de Steel
+function BKHub:ToggleAutoSteelHighestGen()
+    self.Features.AutoSteel.HighestGen = not self.Features.AutoSteel.HighestGen
+    print("[BK Hub] Auto-Steel Highest Gen: " .. tostring(self.Features.AutoSteel.HighestGen))
+    -- Lógica real de implementación aquí
+end
+
+function BKHub:ToggleAutoSteelNearest()
+    self.Features.AutoSteel.Nearest = not self.Features.AutoSteel.Nearest
+    print("[BK Hub] Auto-Steel Nearest: " .. tostring(self.Features.AutoSteel.Nearest))
+    -- Lógica real de implementación aquí
+end
+
+function BKHub:ToggleFloorSteel()
+    self.Features.FloorSteel = not self.Features.FloorSteel
+    print("[BK Hub] Floor Steel: " .. tostring(self.Features.FloorSteel))
+    -- Lógica real de implementación aquí
+end
+
+function BKHub:ToggleSpeedPanel()
+    self.Features.SpeedPanel = not self.Features.SpeedPanel
+    print("[BK Hub] Speed Panel During Steel: " .. tostring(self.Features.SpeedPanel))
+    -- Lógica real de implementación aquí
+end
+
+function BKHub:ToggleDoubleAnimation()
+    self.Features.DoubleAnimation = not self.Features.DoubleAnimation
+    print("[BK Hub] Double Animation During Steel: " .. tostring(self.Features.DoubleAnimation))
+    -- Lógica real de implementación aquí
+end
+
+-- Funciones para características de ESP
+function BKHub:ToggleBrainsESP()
+    self.Features.ESP.Brains = not self.Features.ESP.Brains
+    print("[BK Hub] Brains ESP: " .. tostring(self.Features.ESP.Brains))
+    -- Lógica de ESP aquí
+end
+
+function BKHub:TogglePlayerESP()
+    self.Features.ESP.Players = not self.Features.ESP.Players
+    print("[BK Hub] Player ESP: " .. tostring(self.Features.ESP.Players))
+    -- Lógica de ESP aquí
+end
+
+function BKHub:ToggleBarboseBase()
+    self.Features.ESP.BarboseBase = not self.Features.ESP.BarboseBase
+    print("[BK Hub] Barbose Base: " .. tostring(self.Features.ESP.BarboseBase))
+    -- Lógica de ESP aquí
+end
+
+-- Función para mostrar información del servidor (simulando FPS y ping)
+function BKHub:UpdateServerInfo()
+    -- Esto es un ejemplo, en realidad obtendrías estos valores del juego
+    local fakeFPS = math.random(120, 160)
+    local fakePing = math.random(10, 200)
+    
+    return string.format("FPS: %d | %dms", fakeFPS, fakePing)
+end
+
+-- Función para crear una interfaz de texto simple (consola)
+function BKHub:CreateConsoleInterface()
+    print("========================================")
+    print("           BK's Hub v5 Loaded           ")
+    print("   (Internet, ytt | discord.gg/bshbub)  ")
+    print("========================================")
+    print("")
+    print("Steel Features:")
+    print("  [1] Auto-Steel Highest Gen")
+    print("  [2] Auto-Steel Nearest")
+    print("  [3] Floor Steel")
+    print("  [4] Speed Panel During Steel")
+    print("  [5] Double Animation During Steel")
+    print("")
+    print("ESP Features:")
+    print("  [6] Brains ESP")
+    print("  [7] Player ESP")
+    print("  [8] Barbose Base")
+    print("")
+    print("  [0] Show Server Info")
+    print("  [9] Exit")
+    print("========================================")
+end
+
+-- Función principal para ejecutar el hub
+function BKHub:Run()
+    self:CreateConsoleInterface()
+    
+    -- Ejemplo de loop de interacción (en un entorno real sería diferente)
+    while true do
+        print("\nSelect an option (1-9, 0 for info): ")
+        -- Aquí iría la lógica para capturar input del usuario
+        break -- Rompemos el loop para el ejemplo
+    end
+end
+
+-- Versión simplificada para entornos de consola
+function BKHub.CreateSimpleHub()
+    local hub = BKHub.new()
+    
+    print("BK's Hub v5 Initialized")
+    print("Features available:")
+    
+    for feature, state in pairs(hub.Features) do
+        if type(state) == "table" then
+            for subfeature, substate in pairs(state) do
+                print(string.format("  - %s.%s: %s", feature, subfeature, tostring(substate)))
+            end
+        else
+            print(string.format("  - %s: %s", feature, tostring(state)))
+        end
+    end
+    
+    print("\n" .. hub:UpdateServerInfo())
+    
+    return hub
+end
+
+-- Métodos de utilidad
+function BKHub:SetColorTheme(primary, secondary, accent)
+    self.Config.PrimaryColor = primary or self.Config.PrimaryColor
+    self.Config.SecondaryColor = secondary or self.Config.SecondaryColor
+    self.Config.AccentColor = accent or self.Config.AccentColor
+end
+
+-- Exportar la librería
+return BKHub
