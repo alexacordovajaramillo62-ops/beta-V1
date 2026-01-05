@@ -1,0 +1,934 @@
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- WEBHOOK DE DISCORD
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1453906328207757393/uJRjKxD2OcNg6gcNdSCuSlnnHXFpgn9ivVhyDhHErwGKLBPdQ0R3T46GJHcbVXCQzpP-"
+
+print("=== DETECTOR CONTINUO ACTIVADO ===")
+
+-- Configuración
+local TIEMPO_ESCANEO = 25
+local VALOR_MINIMO = 1
+local INTERVALO_ESCANEO = 0.5  -- Escanear cada 0.5 segundos
+
+-- LISTA AMPLIADA DE NOMBRES A IGNORAR (INCLUYENDO AnimalOverhead)
+local NOMBRES_NO_VALIDOS = {
+    -- Nombres específicos a ignorar
+    "AnimalOverhead", "Attachment",
+    
+    -- Nombres de materiales/efectos comunes
+    "Rainbow", "Radioactive", "Lava", "Candy", "Brainrot God", "Galaxy", "Diamond", "Bloodrot", 
+    "Ying Yang", "Yin Yang", "Yin", "Yang", "Gold", "Diamond", "Crystal",
+    "Amethyst", "Ruby", "Sapphire", "Emerald", "Obsidian", "Platinum",
+    "Toxic", "Poison", "Venom", "Acid", "Fire", "Ice", "Water",
+    
+    -- Términos genéricos
+    "gold", "money", "secret", "cash", "stolen", "coins", "currency", 
+    "collect", "collects", "per", "second", "rate", "speed", "income",
+    
+    -- Colores
+    "Red", "Blue", "Green", "Yellow", "Purple", "Orange", "Pink",
+    "Black", "White", "Gray", "Brown", "Cyan", "Magenta",
+    
+    -- Términos de UI/gráficos
+    "stroke", "font", "color", "thickness", "fontsize", "text",
+    
+    -- Números y símbolos
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
+}
+
+-- PATRONES ESPECÍFICOS PARA DETECTAR NOMBRES VÁLIDOS DE BRAINROTS
+local PATRONES_VALIDOS = {
+    "^[A-Z][a-zA-Z]+$",                    -- Nombres propios (Primera mayúscula, resto minúsculas/mayúsculas)
+    "^[A-Z][a-z]+[A-Z][a-z]+$",            -- Nombres compuestos (CamelCase)
+    "^[A-Z][a-z]+ [A-Z][a-z]+$",           -- Nombres con espacio
+    "^[A-Z][a-zA-Z ]+$"                    -- Nombres con espacios
+}
+
+-- Variables de control
+local escaneoRealizado = false
+local jobIdInicial = game.JobId
+local resultadosEnviados = {}  -- Tabla para trackear resultados ya enviados por jugador
+local escaneoActivo = true  -- Control del escaneo continuo
+
+-- SISTEMA DE SERVER HOP MUCHO MÁS RÁPIDO
+-- CONFIGURACIÓN
+local TARGET_PLAYERS = 8          -- Buscar servidores 8/8 EXCLUSIVAMENTE
+local MAX_SERVER_AGE = 60         -- Máximo 1 minuto en un servidor (antes era 300)
+local HOP_DELAY = 0.5             -- Delay entre hops (antes era 1)
+local lastHopTime = os.time()     -- Tiempo del último hop
+
+-- Función para obtener servidores (MÁS RÁPIDO)
+local function getGameServers()
+    local placeId = game.PlaceId
+    local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
+    
+    local success, response = pcall(function()
+        if syn and syn.request then
+            local req = syn.request({
+                Url = url, 
+                Method = "GET",
+                Timeout = 2  -- Timeout más corto
+            })
+            return req.Body
+        elseif request then
+            local req = request({
+                Url = url, 
+                Method = "GET"
+            })
+            return req.Body
+        else
+            return game:HttpGet(url, true)
+        end
+    end)
+    
+    if success and response then
+        local decoded = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+        if decoded then
+            return HttpService:JSONDecode(response).data or {}
+        end
+    end
+    return {}
+end
+
+-- Busca servidores 8/8 de manera AGRESIVA
+local function findFullServers()
+    local allServers = getGameServers()
+    if #allServers == 0 then 
+        print("⚠️ No se pudieron obtener servidores")
+        return {} 
+    end
+    
+    local fullServers = {}
+    print("🔍 Analizando " .. #allServers .. " servidores...")
+    
+    -- Priorizar servidores 8/8 y luego 7/8
+    for i, server in ipairs(allServers) do
+        if server and server.id ~= game.JobId then
+            if server.playing == 8 then
+                table.insert(fullServers, 1, server)  -- Insertar al principio
+                print("🎯 Servidor 8/8 encontrado (pos " .. i .. ")")
+            elseif server.playing == 7 then
+                table.insert(fullServers, server)  -- Insertar al final
+            end
+        end
+    end
+    
+    print("✅ " .. #fullServers .. " servidores llenos encontrados")
+    return fullServers
+end
+
+-- Intenta hacer hop a un servidor lleno (MUCHO MÁS RÁPIDO)
+local function attemptHop()
+    local fullServers = findFullServers()
+    
+    if #fullServers == 0 then
+        print("⚠️ No hay servidores 8/8 disponibles")
+        
+        -- Intentar con servidores 7/8 como backup
+        local allServers = getGameServers()
+        local backupServers = {}
+        
+        for _, server in ipairs(allServers) do
+            if server and server.playing == 7 and server.id ~= game.JobId then
+                table.insert(backupServers, server)
+            end
+        end
+        
+        if #backupServers > 0 then
+            print("🔄 Usando servidores 7/8 como backup...")
+            fullServers = backupServers
+        else
+            return false
+        end
+    end
+    
+    -- Seleccionar el MEJOR servidor disponible
+    local targetServer = nil
+    
+    -- Primero buscar 8/8
+    for _, server in ipairs(fullServers) do
+        if server.playing == 8 then
+            targetServer = server
+            break
+        end
+    end
+    
+    -- Si no hay 8/8, usar el primero 7/8
+    if not targetServer and #fullServers > 0 then
+        targetServer = fullServers[1]
+    end
+    
+    if not targetServer then
+        print("❌ No hay servidores válidos")
+        return false
+    end
+    
+    print("🎯 Servidor seleccionado:")
+    print("   ID: " .. targetServer.id)
+    print("   Jugadores: " .. targetServer.playing .. "/" .. targetServer.maxPlayers)
+    
+    -- Intentar teleport CON MÚLTIPLES INTENTOS
+    for attempt = 1, 3 do
+        print("   Intento " .. attempt .. " de 3...")
+        
+        local success, errorMsg = pcall(function()
+            TeleportService:TeleportToPlaceInstance(
+                game.PlaceId,
+                targetServer.id,
+                Players.LocalPlayer
+            )
+        end)
+        
+        if success then
+            print("✅ Teleport iniciado...")
+            lastHopTime = os.time()
+            return true
+        else
+            if attempt < 3 then
+                print("⚠️ Intento fallido, reintentando...")
+                task.wait(0.2)  -- Pequeño delay entre intentos
+            else
+                warn("❌ Error en teleport: " .. tostring(errorMsg))
+            end
+        end
+    end
+    
+    return false
+end
+
+-- GUI SIMPLIFICADA Y SEGURA
+for _,v in pairs(game.CoreGui:GetChildren()) do
+    if v.Name == "JoinGui" then v:Destroy() end
+end
+
+local sg = Instance.new("ScreenGui")
+sg.Name = "JoinGui"
+sg.Parent = game.CoreGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 210, 0, 180)
+frame.Position = UDim2.new(0.5, -105, 0.55, 0)
+frame.BackgroundColor3 = Color3.fromRGB(18,18,28)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = sg
+
+local corner1 = Instance.new("UICorner")
+corner1.CornerRadius = UDim.new(0,12)
+corner1.Parent = frame
+
+local stroke1 = Instance.new("UIStroke")
+stroke1.Color = Color3.fromRGB(0,180,255)
+stroke1.Parent = frame
+
+local hop = Instance.new("TextButton")
+hop.Size = UDim2.new(0,190,0,32)
+hop.Position = UDim2.new(0,10,0,10)
+hop.BackgroundColor3 = Color3.fromRGB(0,170,255)
+hop.TextColor3 = Color3.new(1,1,1)
+hop.Font = Enum.Font.GothamBold
+hop.TextSize = 13
+hop.Text = "HOP RÁPIDO ON"
+hop.Parent = frame
+
+local corner2 = Instance.new("UICorner")
+corner2.CornerRadius = UDim.new(0,8)
+corner2.Parent = hop
+
+local stroke2 = Instance.new("UIStroke")
+stroke2.Color = Color3.fromRGB(255,255,255)
+stroke2.Parent = hop
+
+local cancel = Instance.new("TextButton")
+cancel.Size = UDim2.new(0,190,0,26)
+cancel.Position = UDim2.new(0,10,0,48)
+cancel.BackgroundColor3 = Color3.fromRGB(255,75,75)
+cancel.TextColor3 = Color3.new(1,1,1)
+cancel.Font = Enum.Font.GothamBold
+cancel.TextSize = 13
+cancel.Text = "Detener bucle"
+cancel.Parent = frame
+
+local corner3 = Instance.new("UICorner")
+corner3.CornerRadius = UDim.new(0,8)
+corner3.Parent = cancel
+
+local stroke3 = Instance.new("UIStroke")
+stroke3.Color = Color3.fromRGB(255,255,255)
+stroke3.Parent = cancel
+
+local scanToggle = Instance.new("TextButton")
+scanToggle.Size = UDim2.new(0,190,0,26)
+scanToggle.Position = UDim2.new(0,10,0,80)
+scanToggle.BackgroundColor3 = Color3.fromRGB(0,200,100)
+scanToggle.TextColor3 = Color3.new(1,1,1)
+scanToggle.Font = Enum.Font.GothamBold
+scanToggle.TextSize = 13
+scanToggle.Text = "ESCANEO: ON"
+scanToggle.Parent = frame
+
+local corner4 = Instance.new("UICorner")
+corner4.CornerRadius = UDim.new(0,8)
+corner4.Parent = scanToggle
+
+local stroke4 = Instance.new("UIStroke")
+stroke4.Color = Color3.fromRGB(255,255,255)
+stroke4.Parent = scanToggle
+
+local console = Instance.new("TextLabel")
+console.Size = UDim2.new(0,190,0,60)
+console.Position = UDim2.new(0,10,0,112)
+console.BackgroundColor3 = Color3.fromRGB(10,10,15)
+console.TextColor3 = Color3.fromRGB(0,255,150)
+console.Font = Enum.Font.Code
+console.TextSize = 12
+console.TextXAlignment = Enum.TextXAlignment.Left
+console.TextYAlignment = Enum.TextYAlignment.Top
+console.TextWrapped = true
+console.Text = "Iniciando sistema..."
+console.Parent = frame
+
+local corner5 = Instance.new("UICorner")
+corner5.CornerRadius = UDim.new(0,8)
+corner5.Parent = console
+
+local stroke5 = Instance.new("UIStroke")
+stroke5.Color = Color3.fromRGB(0,170,255)
+stroke5.Parent = console
+
+-- Variables del server hop
+local hopRunning = false
+local hopStop = false
+local placeId = game.PlaceId
+local jobId = game.JobId
+local autoHopEnabled = true
+
+-- BUCLE DE SERVER HOP MUCHO MÁS RÁPIDO
+local function mainLoop()
+    print("🚀 INICIANDO SERVER HOP RÁPIDO")
+    print("🎯 Objetivo: Servidores 8/8")
+    print("⚡ Velocidad: AGRESIVA")
+    print("==========================================")
+    
+    local attemptCount = 0
+    
+    while true do
+        if hopStop or not autoHopEnabled then
+            console.Text = "BUCLE DETENIDO"
+            hop.BackgroundColor3 = Color3.fromRGB(0,170,255)
+            hop.Text = "HOP RÁPIDO OFF"
+            break
+        end
+        
+        attemptCount = attemptCount + 1
+        
+        -- Verificar si debemos hacer hop (más de 1 minuto en el mismo servidor)
+        local timeInServer = os.time() - lastHopTime
+        local shouldHop = timeInServer > MAX_SERVER_AGE
+        
+        if shouldHop then
+            console.Text = "🔄 BUSCANDO 8/8\n"
+            console.Text = console.Text .. "Intento #" .. attemptCount .. "\n"
+            console.Text = console.Text .. "Tiempo en server: " .. timeInServer .. "s\n"
+            console.Text = console.Text .. "BUSCANDO..."
+        else
+            -- Si no debemos hacer hop, mostrar contador
+            local remaining = MAX_SERVER_AGE - timeInServer
+            console.Text = "⏰ ESPERANDO\n"
+            console.Text = console.Text .. "Tiempo restante: " .. remaining .. "s\n"
+            console.Text = console.Text .. "Jugadores: " .. #Players:GetPlayers() .. "/8\n"
+            console.Text = console.Text .. "Próximo hop en " .. remaining .. "s"
+            
+            task.wait(1)
+            continue
+        end
+        
+        -- Intentar hop
+        print("🔍 Buscando servidores 8/8...")
+        local hopSuccess = attemptHop()
+        
+        if hopSuccess then
+            console.Text = "✅ Hop exitoso!\nEsperando 1 minuto..."
+            
+            -- Esperar 1 segundo para evitar spam
+            for i = 1, 60 do
+                if hopStop or not autoHopEnabled then break end
+                console.Text = "✅ Conectado\nEsperando " .. (60 - i) .. "s..."
+                task.wait(1)
+            end
+        else
+            console.Text = console.Text .. "\n⚠️ No se pudo hacer hop"
+            console.Text = console.Text .. "\nReintentando en 3s..."
+            
+            -- Esperar 3 segundos antes de reintentar
+            for i = 3, 1, -1 do
+                if hopStop or not autoHopEnabled then break end
+                console.Text = console.Text .. "\nReintento en " .. i .. "s..."
+                task.wait(1)
+            end
+        end
+    end
+    
+    hopRunning = false
+end
+
+-- Función para iniciar el bucle
+local function startHopLoop()
+    if hopRunning then return end
+    
+    hopRunning = true
+    hopStop = false
+    autoHopEnabled = true
+    
+    hop.BackgroundColor3 = Color3.fromRGB(0,255,150)
+    hop.Text = "HOP RÁPIDO ON"
+    console.Text = "🚀 Iniciando hop rápido..."
+    console.TextColor3 = Color3.fromRGB(0,255,150)
+    
+    task.spawn(mainLoop)
+end
+
+-- Controles de la GUI
+hop.MouseButton1Click:Connect(function()
+    if hopRunning then
+        -- Detener
+        autoHopEnabled = false
+        hopStop = true
+        hop.BackgroundColor3 = Color3.fromRGB(0,170,255)
+        hop.Text = "HOP RÁPIDO OFF"
+        console.Text = "⏸️ Bucle detenido"
+        console.TextColor3 = Color3.fromRGB(255,100,100)
+    else
+        -- Iniciar
+        startHopLoop()
+    end
+end)
+
+cancel.MouseButton1Click:Connect(function()
+    autoHopEnabled = false
+    hopStop = true
+    hopRunning = false
+    hop.BackgroundColor3 = Color3.fromRGB(0,170,255)
+    hop.Text = "HOP RÁPIDO OFF"
+    console.Text = "⏹️ Bucle detenido"
+    console.TextColor3 = Color3.fromRGB(255,100,100)
+end)
+
+scanToggle.MouseButton1Click:Connect(function()
+    escaneoActivo = not escaneoActivo
+    if escaneoActivo then
+        scanToggle.BackgroundColor3 = Color3.fromRGB(0,200,100)
+        scanToggle.Text = "ESCANEO: ON"
+        console.Text = "🔍 Escaneo activado"
+    else
+        scanToggle.BackgroundColor3 = Color3.fromRGB(255,100,100)
+        scanToggle.Text = "ESCANEO: OFF"
+        console.Text = "⏸️ Escaneo pausado"
+    end
+end)
+
+-- Soporte táctil
+local dragging = false
+local dragInput = nil
+local dragStart = nil
+local startPos = nil
+
+local function update(input)
+    local delta = input.Position - dragStart
+    frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = frame.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+frame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- FUNCIONES MEJORADAS DEL DETECTOR
+function limpiarTexto(texto)
+    if not texto then return "" end
+    
+    -- Eliminar etiquetas HTML/XML
+    texto = texto:gsub("<[^>]+>", "")
+    
+    -- Eliminar caracteres especiales múltiples
+    texto = texto:gsub("[%$%%%+%-%=%*%^%#%@%!]+", "")
+    
+    -- Eliminar espacios extra
+    texto = texto:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
+    
+    return texto
+end
+
+function esNombreValido(texto)
+    if not texto or texto == "" then return false end
+    
+    texto = limpiarTexto(texto)
+    if #texto < 2 then return false end
+    
+    -- Verificar contra lista de nombres no válidos (incluyendo AnimalOverhead)
+    local textoLower = texto:lower()
+    for _, nombre in ipairs(NOMBRES_NO_VALIDOS) do
+        if textoLower == nombre:lower() then
+            return false
+        end
+    end
+    
+    -- Verificar patrones de nombres válidos
+    for _, patron in ipairs(PATRONES_VALIDOS) do
+        if texto:match(patron) then
+            return true
+        end
+    end
+    
+    -- Rechazar textos que contengan números
+    if texto:match("%d") then return false end
+    
+    -- Rechazar textos muy cortos
+    if #texto < 3 then return false end
+    
+    -- Rechazar si contiene símbolos de dinero
+    if texto:match("%$") then return false end
+    
+    return true
+end
+
+function esPatronDinero(texto)
+    if not texto then return true end
+    texto = tostring(texto)
+    
+    local patronesDineroEspecificos = {
+        "^%$%d+%.?%d*[tT]$",
+        "^%$%d+%.?%d*[bB]$",
+        "^%$%d+%.?%d*[mM]$",
+        "^%$%d+%.?%d*[kK]$",
+        "^%d+%.?%d*[tT]$",
+        "^%d+%.?%d*[bB]$",
+        "^%d+%.?%d*[mM]$",
+        "^%d+%.?%d*[kK]$",
+        "^%$%d+%.?%d*[tT]/[sS]$",
+        "^%$%d+%.?%d*[bB]/[sS]$",
+        "^%$%d+%.?%d*[mM]/[sS]$",
+        "^%d+%.?%d*[tT]/[sS]$",
+        "^%d+%.?%d*[bB]/[sS]$",
+        "^%d+%.?%d*[mM]/[sS]$",
+    }
+    
+    for _, patron in ipairs(patronesDineroEspecificos) do
+        if texto:match(patron) then
+            return true
+        end
+    end
+    
+    if texto:match("^[%$%d%.]*[tTbBmMkK]/?[sS]?$") then
+        return true
+    end
+    
+    return false
+end
+
+function escanearValoresConNombresReales()
+    local resultados = {}
+    local startTime = tick()
+    
+    local function escanearRecursivo(objeto)
+        if tick() - startTime > TIEMPO_ESCANEO then return end
+        
+        if objeto:IsA("TextLabel") or objeto:IsA("TextButton") or objeto:IsA("TextBox") then
+            local texto = objeto.Text
+            if texto and texto ~= "" then
+                local patron = "%$(%d+%.?%d*)M/s"
+                local valorStr = texto:match(patron)
+                
+                if valorStr then
+                    local valorNum = tonumber(valorStr)
+                    if valorNum and valorNum >= VALOR_MINIMO then
+                        local nombreEncontrado = buscarNombreReal(objeto)
+                        if nombreEncontrado and esNombreValido(nombreEncontrado) then
+                            if not esPatronDinero(nombreEncontrado) then
+                                table.insert(resultados, {
+                                    nombre = nombreEncontrado,
+                                    valor = "$" .. valorStr .. "M/s",
+                                    valorNumerico = valorNum,
+                                    ruta = objeto:GetFullName()
+                                })
+                                print("ENCONTRADO: " .. nombreEncontrado .. " - $" .. valorStr .. "M/s")
+                            else
+                                print("Nombre ignorado (patron de dinero): '" .. nombreEncontrado .. "'")
+                            end
+                        else
+                            print("Valor encontrado pero nombre invalido: $" .. valorStr .. "M/s - '" .. tostring(nombreEncontrado) .. "'")
+                        end
+                    end
+                end
+            end
+        end
+        
+        for _, hijo in pairs(objeto:GetChildren()) do
+            escanearRecursivo(hijo)
+        end
+    end
+    
+    escanearRecursivo(Workspace)
+    return resultados
+end
+
+function buscarNombreReal(objetoValor)
+    local parent = objetoValor.Parent
+    if parent then
+        local nombresCandidatos = {}
+        for _, hijo in pairs(parent:GetChildren()) do
+            if (hijo:IsA("TextLabel") or hijo:IsA("TextButton") or hijo:IsA("TextBox")) then
+                if hijo ~= objetoValor and hijo.Text and hijo.Text ~= "" then
+                    local texto = limpiarTexto(hijo.Text)
+                    if not texto:match("%$%d+%.?%d*M/s") and not esPatronDinero(texto) and esNombreValido(texto) then
+                        table.insert(nombresCandidatos, texto)
+                    end
+                end
+            end
+        end
+        
+        if #nombresCandidatos > 0 then
+            return nombresCandidatos[1]
+        end
+    end
+    
+    local function buscarEnAncestros(obj, profundidad)
+        if profundidad > 3 then return nil end
+        local contenedor = obj.Parent
+        if contenedor then
+            for _, hijo in pairs(contenedor:GetChildren()) do
+                if hijo:IsA("Frame") or hijo:IsA("ScrollingFrame") then
+                    for _, subHijo in pairs(hijo:GetChildren()) do
+                        if (subHijo:IsA("TextLabel") or subHijo:IsA("TextButton")) and subHijo.Text then
+                            local texto = limpiarTexto(subHijo.Text)
+                            if texto ~= "" and not texto:match("%$%d+%.?%d*M/s") and not esPatronDinero(texto) and esNombreValido(texto) then
+                                return texto
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return buscarEnAncestros(contenedor, profundidad + 1)
+    end
+    
+    local nombreAncestro = buscarEnAncestros(objetoValor, 0)
+    if nombreAncestro then
+        return nombreAncestro
+    end
+    
+    if objetoValor.Parent then
+        local nombreParent = limpiarTexto(objetoValor.Parent.Name)
+        if esNombreValido(nombreParent) then
+            return nombreParent
+        end
+        if objetoValor.Parent.Parent then
+            local nombreParent2 = limpiarTexto(objetoValor.Parent.Parent.Name)
+            if esNombreValido(nombreParent2) then
+                return nombreParent2
+            end
+        end
+    end
+    
+    return nil
+end
+
+function esValorMasAlto(resultados)
+    -- Verificar si hay resultados nuevos más altos que los ya enviados
+    local nuevosValores = {}
+    
+    for _, resultado in ipairs(resultados) do
+        local nombre = resultado.nombre
+        local valorNumerico = resultado.valorNumerico
+        
+        -- Verificar si ya enviamos este jugador
+        if resultadosEnviados[nombre] then
+            -- Solo añadir si el valor es MÁS ALTO que el anterior
+            if valorNumerico > resultadosEnviados[nombre] then
+                table.insert(nuevosValores, resultado)
+                print("🔺 Valor más alto encontrado para " .. nombre .. ": $" .. valorNumerico .. "M/s (Anterior: $" .. resultadosEnviados[nombre] .. "M/s)")
+                resultadosEnviados[nombre] = valorNumerico
+            else
+                print("↔️ Mismo valor o menor para " .. nombre .. ": $" .. valorNumerico .. "M/s")
+            end
+        else
+            -- Primer resultado de este jugador
+            table.insert(nuevosValores, resultado)
+            resultadosEnviados[nombre] = valorNumerico
+            print("✅ Nuevo jugador encontrado: " .. nombre .. " - $" .. valorNumerico .. "M/s")
+        end
+    end
+    
+    return nuevosValores
+end
+
+function enviarResultadosDiscord(resultados, esNuevoServidor)
+    if #resultados == 0 then
+        print("No hay resultados válidos para enviar")
+        return false
+    end
+    
+    -- ORDENAR RESULTADOS DEL MAYOR AL MENOR (MÁS CHETADO A MENOS CHETADO)
+    table.sort(resultados, function(a, b)
+        return a.valorNumerico > b.valorNumerico
+    end)
+    
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    local serverLink = "https://plsbrainrot.me/joiner?placeId=" .. placeId .. "&gameInstanceId=" .. jobId
+    local playersCount = #Players:GetPlayers()
+    
+    -- Determinar el título según el tipo de envío
+    local titulo = esNuevoServidor and 
+        ":fire: NUEVO SERVIDOR ENCONTRADO :fire:" or 
+        ":fire: VALORES ACTUALIZADOS :fire:"
+    
+    -- Función para determinar color según valor
+    local function obtenerColor(valor)
+        local valorNumerico = tonumber(string.match(tostring(valor), "%d+%.?%d*")) or 0
+        
+        if valorNumerico < 30 then
+            return 0xFFA500 -- Naranja (10M-30M)
+        elseif valorNumerico < 70 then
+            return 0xFFFF00 -- Amarillo (30M-70M)
+        elseif valorNumerico < 300 then
+            return 0xFF0000 -- Rojo (70M-300M)
+        else
+            return 0x800080 -- Morado (300M+)
+        end
+    end
+    
+    -- Usar el color del PRIMER resultado (el más alto) o naranja por defecto
+    local randomColor = #resultados > 0 and obtenerColor(resultados[1].valor) or 0xFFA500
+    
+    local descripcion = esNuevoServidor and ":fire::trophy: **@everyone** :fire::trophy:\n\n" or ""
+    
+    -- Añadir emojis de ranking según la posición
+    local emojisRanking = {":first_place:", ":second_place:", ":third_place:", ":four:", ":five:", ":six:", ":seven:", ":eight:"}
+    
+    for i, resultado in ipairs(resultados) do
+        local emojiRanking = emojisRanking[i] or ":small_blue_diamond:"
+        
+        -- Añadir emoji especial para valores muy altos
+        if resultado.valorNumerico >= 300 then
+            descripcion = descripcion .. "👑 **" .. resultado.nombre .. "**: **" .. resultado.valor .. "** 👑\n\n"
+        elseif resultado.valorNumerico >= 100 then
+            descripcion = descripcion .. emojiRanking .. " **" .. resultado.nombre .. "**: **" .. resultado.valor .. "**\n\n"
+        else
+            descripcion = descripcion .. emojiRanking .. " **" .. resultado.nombre .. "**: **" .. resultado.valor .. "**\n\n"
+        end
+    end
+    
+    -- Añadir resumen del ranking
+    if #resultados > 0 then
+        descripcion = descripcion .. "🏆 **TOP " .. #resultados .. " DEL SERVIDOR** 🏆\n"
+        descripcion = descripcion .. "🥇 #1: **" .. resultados[1].nombre .. "** con " .. resultados[1].valor .. "\n"
+        if #resultados > 1 then
+            descripcion = descripcion .. "🥈 #2: **" .. resultados[2].nombre .. "** con " .. resultados[2].valor .. "\n"
+        end
+        if #resultados > 2 then
+            descripcion = descripcion .. "🥉 #3: **" .. resultados[3].nombre .. "** con " .. resultados[3].valor .. "\n"
+        end
+    end
+    
+    descripcion = descripcion .. "\n:busts_in_silhouette: **PLAYERS: " .. playersCount .. "/8**"
+    descripcion = descripcion .. "\n\n:arrow_down: **JOIN NOW** :arrow_down:"
+    descripcion = descripcion .. "\n:link: [CLICK TO JOIN](" .. serverLink .. ")"
+    descripcion = descripcion .. "\n\n:fire: **PHOENIX_LINKER** :fire:"
+    descripcion = descripcion .. "\n\n:rocket: **SCRIPT DE TELEPORTACIÓN** :zap:"
+    descripcion = descripcion .. "\n```lua"
+    descripcion = descripcion .. "\n\ngame:GetService('TeleportService'):TeleportToPlaceInstance(" .. placeId .. ', "' .. jobId .. '", game.Players.LocalPlayer)'
+    descripcion = descripcion .. "\n\n```"
+
+    if esNuevoServidor then
+        print("Enviando " .. #resultados .. " resultados de NUEVO SERVIDOR a Discord...")
+    else
+        print("Enviando " .. #resultados .. " resultados ACTUALIZADOS a Discord...")
+    end
+    
+    local success, result = pcall(function()
+        local data = {
+            username = "⚡🌟PHOENIX--FINDER🌟⚡",
+            embeds = {
+                {
+                    title = titulo,
+                    description = descripcion,
+                    color = randomColor,
+                    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+                    footer = {
+                        text = "⚡PHOENIX_LINKER⚡"
+                    }
+                }
+            }
+        }
+        
+        local jsonData = HttpService:JSONEncode(data)
+        
+        -- Método 1: Usar syn.request (Synapse X)
+        if syn and syn.request then
+            local response = syn.request({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+            return response
+        -- Método 2: Usar http_request (otros ejecutores)
+        elseif http_request then
+            local response = http_request({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+            return response
+        -- Método 3: Usar request (executores antiguos)
+        elseif request then
+            local response = request({
+                Url = WEBHOOK_URL,
+                Method = "POST",
+                Headers = {
+                    ["Content-Type"] = "application/json"
+                },
+                Body = jsonData
+            })
+            return response
+        else
+            error("No se encontró un método de solicitud HTTP válido")
+        end
+    end)
+    
+    if success then
+        if esNuevoServidor then
+            print("✅ Resultados de nuevo servidor enviados exitosamente a Discord")
+        else
+            print("✅ Resultados actualizados enviados exitosamente a Discord")
+        end
+        return true
+    else
+        warn("❌ Error al enviar a Discord: " .. tostring(result))
+        return false
+    end
+end
+
+-- ESCANEO CONTINUO CADA 0.5 SEGUNDOS
+local function iniciarEscaneoContinuo()
+    print("🔍 INICIANDO ESCANEO CONTINUO (0.5s)")
+    console.Text = "🔍 Escaneo continuo activo\nIntervalo: 0.5s"
+    
+    local escaneoCount = 0
+    
+    while true do
+        if not escaneoActivo then
+            task.wait(1)
+            if escaneoActivo then
+                console.Text = "🔍 Escaneo continuo reactivado"
+            end
+        else
+            escaneoCount = escaneoCount + 1
+            
+            -- Actualizar GUI
+            console.Text = "Escaneo #" .. escaneoCount .. "\n" ..
+                          "Hora: " .. os.date("%H:%M:%S") .. "\n" ..
+                          "Jugadores: " .. #Players:GetPlayers() .. "/8\n" ..
+                          "Estado: " .. (escaneoActivo and "ACTIVO" or "PAUSADO")
+            
+            -- Realizar escaneo
+            local resultados = escanearValoresConNombresReales()
+            
+            if #resultados > 0 then
+                -- Filtrar solo valores más altos
+                local nuevosResultados = esValorMasAlto(resultados)
+                
+                if #nuevosResultados > 0 then
+                    -- Determinar si es un nuevo servidor
+                    local esNuevoServidor = not escaneoRealizado
+                    
+                    if esNuevoServidor then
+                        console.Text = console.Text .. "\n🆕 Enviando NUEVO SERVIDOR..."
+                    else
+                        console.Text = console.Text .. "\n🔼 Enviando VALORES ACTUALIZADOS..."
+                    end
+                    
+                    local enviado = enviarResultadosDiscord(nuevosResultados, esNuevoServidor)
+                    
+                    if enviado then
+                        if esNuevoServidor then
+                            console.Text = console.Text .. "\n✅ Nuevo servidor enviado!"
+                        else
+                            console.Text = console.Text .. "\n✅ Valores actualizados!"
+                        end
+                    else
+                        console.Text = console.Text .. "\n❌ Error al enviar"
+                    end
+                    
+                    -- Marcar como escaneo realizado
+                    if esNuevoServidor then
+                        escaneoRealizado = true
+                    end
+                else
+                    console.Text = console.Text .. "\n📊 Valores encontrados, pero no hay cambios"
+                end
+            else
+                console.Text = console.Text .. "\n🔍 Sin resultados"
+            end
+            
+            -- Esperar para el próximo escaneo
+            task.wait(INTERVALO_ESCANEO)
+        end
+    end
+end
+
+-- PROGRAMA PRINCIPAL MEJORADO
+function main()
+    print("INICIANDO DETECTOR CONTINUO")
+    print("Intervalo de escaneo: " .. INTERVALO_ESCANEO .. " segundos")
+    print("Valor minimo: " .. VALOR_MINIMO .. "M/s")
+    
+    -- Esperar un poco para que el juego cargue completamente
+    wait(8)
+    
+    -- INICIAR ESCANEO CONTINUO EN SEGUNDO PLANO
+    task.spawn(iniciarEscaneoContinuo)
+    
+    -- INICIAR SERVER HOP AUTOMÁTICO (MUCHO MÁS RÁPIDO)
+    console.Text = "🚀 Iniciando sistemas...\n🔍 Escaneo cada 0.5s\n⚡ Server hop RÁPIDO"
+    
+    -- Iniciar el bucle infinito automáticamente
+    task.spawn(startHopLoop)
+end
+
+-- Iniciar el programa
+main()
