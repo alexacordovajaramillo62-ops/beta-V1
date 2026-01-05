@@ -11,7 +11,7 @@ print("=== DETECTOR CONTINUO ACTIVADO ===")
 
 -- Configuración
 local TIEMPO_ESCANEO = 25
-local VALOR_MINIMO = 1
+local VALOR_MINIMO = 20
 local INTERVALO_ESCANEO = 0.5  -- Escanear cada 0.5 segundos
 
 -- LISTA AMPLIADA DE NOMBRES A IGNORAR (INCLUYENDO AnimalOverhead)
