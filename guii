@@ -2607,4 +2607,4 @@ function Labs:CheckConfigExists(filename)
 end
 
 return Labs
-return Labs
+
