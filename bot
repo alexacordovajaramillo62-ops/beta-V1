@@ -5,12 +5,12 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 -- WEBHOOK DE DISCORD
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1453906328207757393/uJRjKxD2OcNg6gcNdSCuSlnnHXFpgn9ivVhyDhHErwGKLBPdQ0R3T46GJHcbVXCQzpP-"
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1458926004264374313/D2VDj4m3AyH0tvi52xOGuEBL1OQcohX_vN2zg0LWxhPT75xT5ghrJDtR8QGQFWk-M-qx"
 
 print("=== DETECTOR CONTINUO ACTIVADO ===")
 
 -- Configuración
-local TIEMPO_ESCANEO = 25
+local TIEMPO_ESCANEO = 15
 local VALOR_MINIMO = 20
 local INTERVALO_ESCANEO = 0.5  -- Escanear cada 0.5 segundos
 
